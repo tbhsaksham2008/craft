@@ -293,7 +293,7 @@ function Index() {
           {[
             "Pick your items and add them to your cart.",
             "Enter your exact Minecraft username at checkout.",
-            "Rewards are delivered in-game once payment is verified.",
+            "Rewards are queued after payment is independently reconciled.",
           ].map((s, i) => (
             <Reveal key={s} delay={i * 100}>
               <li className="glass h-full rounded-2xl p-6 shadow-soft">

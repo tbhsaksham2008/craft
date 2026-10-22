@@ -1,13 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { isValidMinecraftName } from "@/lib/minecraft";
-import {
-  captureRazorpayPayment,
-  createRazorpayOrder,
-  fetchRazorpayPayment,
-  getRazorpayKeyId,
-  verifyRazorpaySignature,
-} from "@/lib/razorpay.server";
+import { buildUpiPaymentUri, isValidUpiVpa } from "@/lib/upi";
 
 const orderInput = z.object({
   accessToken: z.string().min(1),
@@ -26,11 +20,16 @@ const orderInput = z.object({
   discountCode: z.string().max(32).optional(),
 });
 
-const verificationInput = z.object({
+const orderLookupInput = z.object({
   accessToken: z.string().min(1),
-  razorpayOrderId: z.string().min(1).max(128),
-  razorpayPaymentId: z.string().min(1).max(128),
-  razorpaySignature: z.string().regex(/^[a-f\d]{64}$/i),
+  orderId: z.string().uuid(),
+});
+
+const paymentSubmissionInput = z.object({
+  accessToken: z.string().min(1),
+  orderId: z.string().uuid(),
+  transactionReference: z.string().trim().max(128).optional(),
+  customerNote: z.string().trim().max(1000).optional(),
 });
 
 function requiredEnv(name: string) {
@@ -44,13 +43,14 @@ function requiredEnv(name: string) {
   return value;
 }
 
-async function getClients(accessToken: string) {
+export async function getClients(accessToken: string) {
   const { createClient } = await import("@supabase/supabase-js");
   const url = requiredEnv("VITE_SUPABASE_URL");
   const anonKey = requiredEnv("VITE_SUPABASE_ANON_KEY");
   const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
   const authClient = createClient(url, anonKey, {
-    auth: { persistSession: false },
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
   const { data, error } = await authClient.auth.getUser(accessToken);
   if (error || !data.user) throw new Error("Sign in before placing an order.");
@@ -58,20 +58,26 @@ async function getClients(accessToken: string) {
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  return { admin, user: data.user };
+  return { admin, authClient, user: data.user };
 }
 
-export const createRazorpayCheckoutOrder = createServerFn({ method: "POST" })
+function merchantVpa() {
+  const vpa = requiredEnv("MERCHANT_UPI_ID").trim();
+  if (!isValidUpiVpa(vpa))
+    throw new Error("MERCHANT_UPI_ID must be a valid UPI ID.");
+  return vpa;
+}
+
+export const createUpiCheckoutOrder = createServerFn({ method: "POST" })
   .validator(orderInput)
   .handler(async ({ data }) => {
+    const vpa = merchantVpa();
     const { admin, user } = await getClients(data.accessToken);
+    const productIds = data.items.map((item) => item.productId);
     const { data: products, error: productError } = await admin
       .from("products")
       .select("id,name,price_paise,enabled,single")
-      .in(
-        "id",
-        data.items.map((item) => item.productId),
-      );
+      .in("id", productIds);
     if (productError)
       throw new Error(`Could not validate your cart: ${productError.message}`);
     if (
@@ -106,6 +112,7 @@ export const createRazorpayCheckoutOrder = createServerFn({ method: "POST" })
     );
     if (!Number.isSafeInteger(subtotalPaise) || subtotalPaise > 2_147_483_647)
       throw new Error("This cart total exceeds the supported checkout limit.");
+
     let discountCode: string | null = null;
     let discountPaise = 0;
     if (data.discountCode?.trim()) {
@@ -124,6 +131,7 @@ export const createRazorpayCheckoutOrder = createServerFn({ method: "POST" })
         (subtotalPaise * discounts[0].percent_off) / 100,
       );
     }
+
     const totalPaise = subtotalPaise - discountPaise;
     if (totalPaise < 100)
       throw new Error("The order total must be at least ₹1.");
@@ -139,7 +147,7 @@ export const createRazorpayCheckoutOrder = createServerFn({ method: "POST" })
         total_paise: totalPaise,
         discount_code: discountCode,
       })
-      .select("id")
+      .select("id,expires_at")
       .single();
     if (orderError)
       throw new Error(`Could not create the order: ${orderError.message}`);
@@ -166,93 +174,67 @@ export const createRazorpayCheckoutOrder = createServerFn({ method: "POST" })
       throw new Error(`Could not save the order items: ${itemsError.message}`);
     }
 
-    try {
-      const razorpayOrder = await createRazorpayOrder({
-        amount: totalPaise,
-        receipt: order.id,
-      });
-      const { error: linkError } = await admin
-        .from("orders")
-        .update({ razorpay_order_id: razorpayOrder.id })
-        .eq("id", order.id);
-      if (linkError)
-        throw new Error(
-          `Could not link the Razorpay order: ${linkError.message}`,
-        );
-      return {
-        keyId: getRazorpayKeyId(),
-        orderId: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-      };
-    } catch (error) {
-      const { error: cancelError } = await admin
-        .from("orders")
-        .update({ status: "cancelled" })
-        .eq("id", order.id)
-        .eq("status", "pending");
-      if (cancelError)
-        console.error("Could not cancel failed checkout order", cancelError);
-      throw error;
-    }
+    return {
+      orderId: order.id,
+      amountPaise: totalPaise,
+      vpa,
+      upiUri: buildUpiPaymentUri({
+        vpa,
+        amountPaise: totalPaise,
+        orderId: order.id,
+      }),
+      expiresAt: order.expires_at,
+      status: "pending" as const,
+    };
   });
 
-export const verifyRazorpayCheckoutPayment = createServerFn({
-  method: "POST",
-})
-  .validator(verificationInput)
+export const getUpiOrderDetails = createServerFn({ method: "POST" })
+  .validator(orderLookupInput)
   .handler(async ({ data }) => {
     const { admin, user } = await getClients(data.accessToken);
-    const { data: order, error: orderError } = await admin
+    const { data: order, error } = await admin
       .from("orders")
-      .select("id,total_paise,status")
-      .eq("razorpay_order_id", data.razorpayOrderId)
+      .select("id,total_paise,status,expires_at")
+      .eq("id", data.orderId)
       .eq("user_id", user.id)
       .single();
-    if (orderError || !order)
-      throw new Error("This Razorpay order is not linked to your account.");
-    if (order.status === "paid") return { paid: true };
+    if (error || !order) throw new Error("Order not found in your account.");
     if (order.status !== "pending")
-      throw new Error("This order can no longer be completed.");
-    if (
-      !verifyRazorpaySignature(
-        `${data.razorpayOrderId}|${data.razorpayPaymentId}`,
-        data.razorpaySignature,
-      )
-    ) {
-      throw new Error("Razorpay payment signature is invalid.");
-    }
+      throw new Error("This order is no longer awaiting payment.");
 
-    let payment = await fetchRazorpayPayment(data.razorpayPaymentId);
-    if (
-      payment.order_id === data.razorpayOrderId &&
-      payment.status === "authorized" &&
-      payment.amount === order.total_paise &&
-      payment.currency === "INR"
-    ) {
-      payment = await captureRazorpayPayment(
-        data.razorpayPaymentId,
-        order.total_paise,
-      );
-    }
-    if (
-      payment.order_id !== data.razorpayOrderId ||
-      payment.status !== "captured" ||
-      payment.amount !== order.total_paise ||
-      payment.currency !== "INR"
-    ) {
-      throw new Error(
-        "Razorpay could not verify the completed payment details.",
-      );
-    }
+    const vpa = merchantVpa();
+    return {
+      orderId: order.id,
+      amountPaise: order.total_paise,
+      vpa,
+      upiUri:
+        new Date(order.expires_at).getTime() > Date.now()
+          ? buildUpiPaymentUri({
+              vpa,
+              amountPaise: order.total_paise,
+              orderId: order.id,
+            })
+          : null,
+      expiresAt: order.expires_at,
+      status: "pending" as const,
+    };
+  });
 
-    const { error: completionError } = await admin.rpc("complete_paid_order", {
-      p_order_id: order.id,
-      p_payment_id: payment.id,
-    });
-    if (completionError)
-      throw new Error(
-        `Payment succeeded but order finalization failed: ${completionError.message}`,
-      );
-    return { paid: true };
+export const submitUpiPaymentForReview = createServerFn({ method: "POST" })
+  .validator(paymentSubmissionInput)
+  .handler(async ({ data }) => {
+    const { authClient } = await getClients(data.accessToken);
+    const { data: submissionId, error } = await authClient.rpc(
+      "submit_upi_payment",
+      {
+        p_order_id: data.orderId,
+        p_transaction_reference: data.transactionReference || null,
+        p_customer_note: data.customerNote || null,
+      },
+    );
+    if (error)
+      throw new Error(`Could not submit payment details: ${error.message}`);
+    if (!submissionId)
+      throw new Error("Payment details could not be saved for review.");
+    return { submissionId };
   });

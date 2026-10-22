@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AlertTriangle, FlaskConical } from "lucide-react";
+import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,62 +12,20 @@ import { useCart } from "@/hooks/use-cart";
 import { formatPrice } from "@/config/site";
 import { isValidMinecraftName } from "@/lib/minecraft";
 import {
-  createRazorpayCheckoutOrder,
-  verifyRazorpayCheckoutPayment,
+  createUpiCheckoutOrder,
+  getUpiOrderDetails,
+  submitUpiPaymentForReview,
 } from "@/lib/payments";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { seo } from "@/lib/seo";
 
-type RazorpayPaymentResult = {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
+type PendingPayment = {
+  orderId: string;
+  amountPaise: number;
+  vpa: string;
+  upiUri: string | null;
+  expiresAt: string;
 };
-
-type RazorpayOptions = {
-  key: string;
-  order_id: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  prefill: { email?: string; name?: string };
-  theme: { color: string };
-  handler: (result: RazorpayPaymentResult) => void;
-  modal: { ondismiss: () => void };
-};
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayOptions) => { open: () => void };
-  }
-}
-
-function loadRazorpayCheckout() {
-  if (window.Razorpay) return Promise.resolve();
-  const existingScript = document.querySelector<HTMLScriptElement>(
-    'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
-  );
-  if (existingScript) {
-    return new Promise<void>((resolve, reject) => {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Razorpay Checkout could not be loaded.")),
-        { once: true },
-      );
-    });
-  }
-  return new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error("Razorpay Checkout could not be loaded."));
-    document.body.appendChild(script);
-  });
-}
 
 export const Route = createFileRoute("/checkout")({
   head: () =>
@@ -93,6 +52,14 @@ function Checkout() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [payment, setPayment] = useState<PendingPayment | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [transactionReference, setTransactionReference] = useState("");
+  const [customerNote, setCustomerNote] = useState("");
+  const [reviewRequested, setReviewRequested] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [confirmedManualReview, setConfirmedManualReview] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const valid = isValidMinecraftName(name);
 
   useEffect(() => {
@@ -112,6 +79,68 @@ function Checkout() {
     );
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session || payment) return;
+    const savedOrderId = window.sessionStorage.getItem("craft-upi-order-id");
+    if (!savedOrderId) return;
+
+    let active = true;
+    void getUpiOrderDetails({
+      data: { accessToken: session.access_token, orderId: savedOrderId },
+    }).then(
+      (details) => {
+        if (active) setPayment(details);
+      },
+      (restoreError: unknown) => {
+        window.sessionStorage.removeItem("craft-upi-order-id");
+        if (active) {
+          setError(
+            restoreError instanceof Error
+              ? restoreError.message
+              : "Could not restore your pending UPI order.",
+          );
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [payment, session]);
+
+  useEffect(() => {
+    if (!payment?.upiUri) {
+      setQrDataUrl("");
+      return;
+    }
+    let active = true;
+    void QRCode.toDataURL(payment.upiUri, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+    }).then(
+      (dataUrl) => {
+        if (active) setQrDataUrl(dataUrl);
+      },
+      (qrError: unknown) => {
+        if (active)
+          setError(
+            qrError instanceof Error
+              ? `Could not render the payment QR code: ${qrError.message}`
+              : "Could not render the payment QR code.",
+          );
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [payment]);
+
+  useEffect(() => {
+    if (!payment) return;
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [payment]);
 
   const validateDiscount = async () => {
     if (!supabase || !discountCode.trim()) return;
@@ -149,7 +178,7 @@ function Checkout() {
     if (!valid || !confirmed || !session?.access_token || !lines.length) return;
     setBusy(true);
     try {
-      const result = await createRazorpayCheckoutOrder({
+      const result = await createUpiCheckoutOrder({
         data: {
           accessToken: session.access_token,
           minecraftUsername: name,
@@ -160,57 +189,212 @@ function Checkout() {
           discountCode: discountCode.trim() || undefined,
         },
       });
-      await loadRazorpayCheckout();
-      if (!window.Razorpay)
-        throw new Error("Razorpay Checkout did not initialize.");
-      const checkout = new window.Razorpay({
-        key: result.keyId,
-        order_id: result.orderId,
-        amount: result.amount,
-        currency: result.currency,
-        name: "Craft SMP",
-        description: "Minecraft store purchase",
-        prefill: session.user.email ? { email: session.user.email } : {},
-        theme: { color: "#7c5ce7" },
-        handler: (payment) => {
-          setMessage("Verifying your payment…");
-          void verifyRazorpayCheckoutPayment({
-            data: {
-              accessToken: session.access_token,
-              razorpayOrderId: payment.razorpay_order_id,
-              razorpayPaymentId: payment.razorpay_payment_id,
-              razorpaySignature: payment.razorpay_signature,
-            },
-          })
-            .then(() => {
-              clear();
-              setMessage(
-                "Payment confirmed. Your order is now queued for reward delivery.",
-              );
-            })
-            .catch((verificationError: unknown) => {
-              setError(
-                verificationError instanceof Error
-                  ? verificationError.message
-                  : "Could not verify your Razorpay payment.",
-              );
-            })
-            .finally(() => setBusy(false));
-        },
-        modal: {
-          ondismiss: () => setBusy(false),
-        },
-      });
-      checkout.open();
+      window.sessionStorage.setItem("craft-upi-order-id", result.orderId);
+      setPayment(result);
+      clear();
+      setMessage(
+        "Order created. Complete the UPI payment, then request a manual payment review.",
+      );
     } catch (checkoutError) {
       setError(
         checkoutError instanceof Error
           ? checkoutError.message
-          : "Could not start Razorpay checkout.",
+          : "Could not create your UPI order.",
       );
+    } finally {
       setBusy(false);
     }
   };
+
+  const submitPaymentDetails = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (
+      !payment ||
+      !session?.access_token ||
+      !confirmedManualReview ||
+      reviewRequested
+    )
+      return;
+    setReviewBusy(true);
+    setError("");
+    try {
+      await submitUpiPaymentForReview({
+        data: {
+          accessToken: session.access_token,
+          orderId: payment.orderId,
+          transactionReference: transactionReference.trim() || undefined,
+          customerNote: customerNote.trim() || undefined,
+        },
+      });
+      setReviewRequested(true);
+      setMessage(
+        "Your details were submitted for manual reconciliation. This is not payment confirmation.",
+      );
+    } catch (submissionError) {
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "Could not submit payment details for review.",
+      );
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
+  if (payment) {
+    const paymentExpired = currentTime >= new Date(payment.expiresAt).getTime();
+    return (
+      <>
+        <PageHeader
+          title="Complete your UPI payment"
+          sub="Your order is saved. Payment is reconciled manually before rewards are queued."
+        />
+        <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
+          <section className="rounded-2xl border bg-card p-6 shadow-soft sm:p-8">
+            <div className="grid gap-8 sm:grid-cols-[260px_1fr]">
+              <div className="grid min-h-60 place-items-center rounded-2xl bg-white p-4">
+                {payment.upiUri && !paymentExpired && qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt="QR code for the exact UPI order amount"
+                    width={240}
+                    height={240}
+                  />
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground">
+                    {paymentExpired
+                      ? "This payment request has expired."
+                      : "Preparing your payment QR code…"}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Amount due</p>
+                  <p className="text-3xl font-bold">
+                    {formatPrice(payment.amountPaise / 100)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Merchant UPI ID
+                  </p>
+                  <p className="break-all font-mono font-semibold">
+                    {payment.vpa}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Order ID</p>
+                  <p className="break-all font-mono text-xs">
+                    {payment.orderId}
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Pay using any UPI app that supports a UPI payment intent or QR
+                  scan. FamApp compatibility depends on the installed app and
+                  device. Include the order ID in the payment note if your app
+                  allows it.
+                </p>
+                {payment.upiUri && !paymentExpired && (
+                  <Button asChild variant="hero" className="w-full">
+                    <a href={payment.upiUri}>Open a UPI app</a>
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Request expires {new Date(payment.expiresAt).toLocaleString()}
+                  .
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border bg-card p-6 shadow-soft">
+            <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+              <AlertTriangle className="size-5 shrink-0 text-amber-700" />
+              <p>
+                Sending money, entering a UTR, or sharing a screenshot does not
+                prove settlement. Do not pay an expired request. An admin must
+                independently reconcile the payment before the order is marked
+                paid.
+              </p>
+            </div>
+            {reviewRequested ? (
+              <p role="status" className="text-sm text-success">
+                {message}
+              </p>
+            ) : (
+              <form onSubmit={(event) => void submitPaymentDetails(event)}>
+                <div className="space-y-2">
+                  <Label htmlFor="upi-reference">
+                    UPI transaction reference (optional)
+                  </Label>
+                  <Input
+                    id="upi-reference"
+                    value={transactionReference}
+                    onChange={(event) =>
+                      setTransactionReference(event.target.value)
+                    }
+                    maxLength={128}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This is only a search clue for an admin, not proof of
+                    payment. Never enter your UPI PIN, password, or OTP.
+                    {paymentExpired &&
+                      " For an expired order, submit details only if you already paid before the expiry; do not pay now."}
+                  </p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Label htmlFor="upi-note">Note for support (optional)</Label>
+                  <Input
+                    id="upi-note"
+                    value={customerNote}
+                    onChange={(event) => setCustomerNote(event.target.value)}
+                    maxLength={1000}
+                  />
+                </div>
+                <label className="mt-4 flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={confirmedManualReview}
+                    onChange={(event) =>
+                      setConfirmedManualReview(event.target.checked)
+                    }
+                    className="mt-1"
+                  />
+                  {paymentExpired
+                    ? "I already completed payment before expiry; I understand this requests review only and does not confirm payment."
+                    : "I understand this only requests a manual review and does not confirm payment."}
+                </label>
+                {error && (
+                  <p role="alert" className="mt-3 text-sm text-destructive">
+                    {error}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  variant="hero"
+                  className="mt-5 w-full"
+                  disabled={!confirmedManualReview || reviewBusy || !session}
+                >
+                  {paymentExpired
+                    ? "Request review of an earlier payment"
+                    : reviewBusy
+                      ? "Submitting…"
+                      : "Request manual payment review"}
+                </Button>
+              </form>
+            )}
+            {message && !reviewRequested && (
+              <p role="status" className="text-sm text-success">
+                {message}
+              </p>
+            )}
+          </section>
+        </div>
+      </>
+    );
+  }
 
   if (!lines.length) {
     return (
@@ -254,7 +438,7 @@ function Checkout() {
               <FlaskConical className="size-5 shrink-0" />
               <p>
                 <strong>Payments aren’t configured.</strong> Add Supabase and
-                Razorpay server settings from .env.example before taking orders.
+                the merchant UPI ID from .env.example before taking orders.
               </p>
             </div>
           ) : !session ? (
@@ -353,7 +537,7 @@ function Checkout() {
               <FlaskConical className="size-4" />
             )}
             {isSupabaseConfigured
-              ? "Razorpay checkout will be available after server credentials are configured."
+              ? "UPI checkout creates a payment request. An admin must independently reconcile the payment."
               : "No payment provider is configured."}
           </div>
           {error && (
@@ -373,7 +557,7 @@ function Checkout() {
             className="w-full"
             disabled={!isSupabaseConfigured || !session || busy}
           >
-            {busy ? "Please wait…" : "Pay with Razorpay"}
+            {busy ? "Please wait…" : "Create UPI payment request"}
           </Button>
         </form>
 

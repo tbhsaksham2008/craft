@@ -79,9 +79,11 @@ export const Route = createFileRoute("/terms")({
 
       <h2>6. Payments and refunds</h2>
       <p>
-        Payments are processed by the payment provider shown during checkout.
-        Refunds are not offered for completed purchases except where required by
-        applicable law. Read the{" "}
+        Checkout may display a UPI payment request. A UPI intent, email, UTR, or
+        screenshot does not itself confirm settlement; an order is marked paid
+        only after the payment is independently reconciled. Refunds are not
+        offered for completed purchases except where required by applicable law.
+        Read the{" "}
         <Link to="/refunds" className="text-ink underline">
           Refund Policy
         </Link>{" "}

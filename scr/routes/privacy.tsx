@@ -39,12 +39,12 @@ export const Route = createFileRoute("/privacy")({
 
       <h2>Payment information</h2>
       <p>
-        When checkout is enabled, payment is handled through the provider
-        presented at checkout (currently Razorpay). The provider processes
-        payment credentials under its own terms and privacy policy. The store
-        may receive and retain transaction identifiers, amount, and payment
-        status to reconcile an order; do not send full card, bank, or UPI
-        credentials to us.
+        Checkout displays a UPI payment request. The store does not collect UPI
+        credentials or PINs. If Gmail-assisted review is configured, an admin
+        may request limited Gmail read access to collect payment-notification
+        evidence. Parsed email metadata and transaction references are stored
+        for manual reconciliation; email content alone does not verify
+        settlement. Do not send full card, bank, or UPI credentials to us.
       </p>
 
       <h2>Information stored by your browser</h2>

@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { scanGmailPaymentNotifications } from "@/lib/gmail-payments";
 import { seo } from "@/lib/seo";
 import type { Category, Product } from "@/data/products";
 import { formatPrice } from "@/config/site";
@@ -98,10 +99,41 @@ type OrderHistoryRow = {
   total_paise: number;
   discount_code: string | null;
   created_at: string;
+  expires_at: string;
   paid_at: string | null;
-  razorpay_payment_id: string | null;
   customer_email: string | null;
   items: OrderHistoryItem[];
+};
+
+type PaymentSubmissionRow = {
+  id: string;
+  order_id: string;
+  transaction_reference: string | null;
+  customer_note: string | null;
+  status: "submitted" | "manual_review";
+  created_at: string;
+  orders: {
+    minecraft_username: string;
+    total_paise: number;
+    expires_at: string;
+    status: string;
+  } | null;
+};
+
+type GmailPaymentEventRow = {
+  id: string;
+  gmail_message_id: string;
+  sender: string | null;
+  received_at: string | null;
+  transaction_id: string | null;
+  utr: string | null;
+  amount_paise: number | null;
+  currency: string | null;
+  payment_status: "received" | "ambiguous";
+  dkim_pass: boolean;
+  order_id_hint: string | null;
+  review_status: "manual_review" | "reviewed" | "rejected";
+  review_reason: string;
 };
 
 type OrderFilter = "all" | OrderHistoryRow["status"];
@@ -134,6 +166,10 @@ function AdminPage() {
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [orders, setOrders] = useState<OrderHistoryRow[]>([]);
+  const [paymentSubmissions, setPaymentSubmissions] = useState<
+    PaymentSubmissionRow[]
+  >([]);
+  const [gmailEvents, setGmailEvents] = useState<GmailPaymentEventRow[]>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
   const [orderLimit, setOrderLimit] = useState(50);
@@ -151,6 +187,7 @@ function AdminPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [scanningGmail, setScanningGmail] = useState(false);
 
   useEffect(() => {
     if (!imageFile) {
@@ -168,32 +205,55 @@ function AdminPage() {
       setError("");
       setRefreshing(true);
       try {
-        const [productResult, discountResult, queueResult, orderResult] =
-          await Promise.all([
-            supabase.from("products").select("*").order("name"),
-            supabase
-              .from("discount_codes")
-              .select("id,code,percent_off,active,expires_at")
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("fulfillment_queue")
-              .select(
-                "id,status,attempts,last_error,order_items(name,quantity,orders(minecraft_username,id))",
-              )
-              .order("created_at", { ascending: true }),
-            supabase
-              .from("orders")
-              .select(
-                "id,user_id,minecraft_username,status,currency,subtotal_paise,discount_paise,total_paise,discount_code,created_at,paid_at,razorpay_payment_id",
-              )
-              .order("created_at", { ascending: false })
-              .range(0, requestedOrderLimit - 1),
-          ]);
+        const [
+          productResult,
+          discountResult,
+          queueResult,
+          orderResult,
+          paymentSubmissionResult,
+          gmailEventResult,
+        ] = await Promise.all([
+          supabase.from("products").select("*").order("name"),
+          supabase
+            .from("discount_codes")
+            .select("id,code,percent_off,active,expires_at")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("fulfillment_queue")
+            .select(
+              "id,status,attempts,last_error,order_items(name,quantity,orders(minecraft_username,id))",
+            )
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("orders")
+            .select(
+              "id,user_id,minecraft_username,status,currency,subtotal_paise,discount_paise,total_paise,discount_code,created_at,expires_at,paid_at",
+            )
+            .order("created_at", { ascending: false })
+            .range(0, requestedOrderLimit - 1),
+          supabase
+            .from("upi_payment_submissions")
+            .select(
+              "id,order_id,transaction_reference,customer_note,status,created_at,orders(minecraft_username,total_paise,expires_at,status)",
+            )
+            .in("status", ["submitted", "manual_review"])
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("gmail_payment_events")
+            .select(
+              "id,gmail_message_id,sender,received_at,transaction_id,utr,amount_paise,currency,payment_status,dkim_pass,order_id_hint,review_status,review_reason",
+            )
+            .eq("review_status", "manual_review")
+            .order("received_at", { ascending: false })
+            .limit(50),
+        ]);
         const issue =
           productResult.error ??
           discountResult.error ??
           queueResult.error ??
-          orderResult.error;
+          orderResult.error ??
+          paymentSubmissionResult.error ??
+          gmailEventResult.error;
         if (issue) throw issue;
         const orderRows = orderResult.data ?? [];
         const userIds = [...new Set(orderRows.map((order) => order.user_id))];
@@ -234,6 +294,13 @@ function AdminPage() {
         setProducts(productResult.data ?? []);
         setDiscounts(discountResult.data ?? []);
         setQueue((queueResult.data ?? []) as unknown as QueueRow[]);
+        setPaymentSubmissions(
+          (paymentSubmissionResult.data ??
+            []) as unknown as PaymentSubmissionRow[],
+        );
+        setGmailEvents(
+          (gmailEventResult.data ?? []) as unknown as GmailPaymentEventRow[],
+        );
         setOrders(
           orderRows.map((order) => ({
             ...order,
@@ -535,28 +602,158 @@ function AdminPage() {
     }
   };
 
-  const updateQueueStatus = async (id: string, status: QueueRow["status"]) => {
+  const reviewPaymentSubmission = async (
+    event: FormEvent<HTMLFormElement>,
+    submissionId: string,
+  ) => {
+    event.preventDefault();
     if (!supabase) return;
-    const current = queue.find((item) => item.id === id);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    if (!(submitter instanceof HTMLButtonElement)) {
+      setError("Choose a payment review decision.");
+      return;
+    }
+    const decision = submitter.value;
+    if (
+      decision !== "approved" &&
+      decision !== "rejected" &&
+      decision !== "manual_review"
+    ) {
+      setError("Invalid payment review decision.");
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const reason = String(formData.get("reason") ?? "").trim();
+    const reference = String(
+      formData.get("verifiedTransactionReference") ?? "",
+    ).trim();
+    const amountText = String(formData.get("verifiedAmount") ?? "").trim();
+    const settlementText = String(
+      formData.get("verifiedSettlementTime") ?? "",
+    ).trim();
+    const amount = amountText ? Number(amountText) : NaN;
+    const amountPaise =
+      Number.isFinite(amount) && Number.isSafeInteger(amount * 100)
+        ? Math.round(amount * 100)
+        : null;
+    const settlementDate = settlementText ? new Date(settlementText) : null;
+    const settlementTimestamp =
+      settlementDate && !Number.isNaN(settlementDate.getTime())
+        ? settlementDate.toISOString()
+        : null;
+
     try {
-      const { error: updateError } = await supabase
-        .from("fulfillment_queue")
-        .update({
-          status,
-          attempts:
-            status === "processing"
-              ? (current?.attempts ?? 0) + 1
-              : (current?.attempts ?? 0),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-      if (updateError) throw updateError;
+      if (!reason) throw new Error("A review reason is required.");
+      if (
+        decision === "approved" &&
+        (amountPaise === null || !reference || !settlementTimestamp)
+      )
+        throw new Error(
+          "Approval requires the independently confirmed amount, transaction reference, and settlement time.",
+        );
+      const { data: reviewed, error: reviewError } = await supabase.rpc(
+        "review_upi_payment_submission",
+        {
+          p_submission_id: submissionId,
+          p_decision: decision,
+          p_verified_amount_paise: decision === "approved" ? amountPaise : null,
+          p_verified_transaction_reference:
+            decision === "approved" ? reference : null,
+          p_settled_at: decision === "approved" ? settlementTimestamp : null,
+          p_reason: reason,
+        },
+      );
+      if (reviewError) throw reviewError;
+      if (!reviewed)
+        throw new Error("This payment submission has already been reviewed.");
+      setNotice(
+        decision === "approved"
+          ? "Payment reconciled and order marked paid."
+          : decision === "rejected"
+            ? "Payment submission rejected."
+            : "Payment submission sent to manual follow-up.",
+      );
       await refresh();
-    } catch (updateError) {
+    } catch (reviewError) {
       setError(
-        updateError instanceof Error
-          ? `Could not update fulfillment status: ${updateError.message}`
-          : "Could not update fulfillment status.",
+        reviewError instanceof Error
+          ? `Could not review payment: ${reviewError.message}`
+          : "Could not review payment.",
+      );
+    }
+  };
+
+  const scanPaymentEmail = async () => {
+    if (!supabase) return;
+    setScanningGmail(true);
+    setError("");
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session)
+        throw new Error("Sign in with an admin account first.");
+      const result = await scanGmailPaymentNotifications({
+        data: { accessToken: sessionData.session.access_token },
+      });
+      setNotice(result.message);
+      await refresh();
+    } catch (scanError) {
+      setError(
+        scanError instanceof Error
+          ? `Could not scan Gmail: ${scanError.message}`
+          : "Could not scan Gmail.",
+      );
+    } finally {
+      setScanningGmail(false);
+    }
+  };
+
+  const reviewGmailEvent = async (
+    event: FormEvent<HTMLFormElement>,
+    eventId: string,
+  ) => {
+    event.preventDefault();
+    if (!supabase) return;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    if (!(submitter instanceof HTMLButtonElement)) {
+      setError("Choose an email evidence review decision.");
+      return;
+    }
+    const decision = submitter.value;
+    if (decision !== "reviewed" && decision !== "rejected") {
+      setError("Invalid email evidence review decision.");
+      return;
+    }
+    const reason = String(
+      new FormData(event.currentTarget).get("reason") ?? "",
+    ).trim();
+    if (!reason) {
+      setError("A review reason is required.");
+      return;
+    }
+    try {
+      const { data: updated, error: updateError } = await supabase.rpc(
+        "review_gmail_payment_event",
+        {
+          p_event_id: eventId,
+          p_decision: decision,
+          p_reason: reason,
+        },
+      );
+      if (updateError) throw updateError;
+      if (!updated)
+        throw new Error("This email evidence was already reviewed.");
+      setNotice(
+        "Email evidence review recorded. This action did not mark any order paid.",
+      );
+      await refresh();
+    } catch (reviewError) {
+      setError(
+        reviewError instanceof Error
+          ? `Could not review email evidence: ${reviewError.message}`
+          : "Could not review email evidence.",
       );
     }
   };
@@ -719,6 +916,295 @@ function AdminPage() {
             </p>
           )}
           <section className="admin-enter admin-stagger-1 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Payments
+            </p>
+            <h2 className="mt-1 text-2xl">UPI payment review</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Customer references and notes are unverified clues. Confirm the
+              settlement and exact amount independently in your bank or merchant
+              records before approving. Gmail is not connected.
+            </p>
+            {paymentSubmissions.length ? (
+              <ul className="mt-4 space-y-4">
+                {paymentSubmissions.map((submission) => (
+                  <li key={submission.id} className="rounded-xl border p-4">
+                    <div className="flex flex-wrap justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {submission.orders?.minecraft_username ??
+                            "Unknown player"}
+                        </p>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          Order {submission.order_id}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Expected{" "}
+                          {formatPrice(
+                            (submission.orders?.total_paise ?? 0) / 100,
+                          )}{" "}
+                          · order {submission.orders?.status ?? "unavailable"} ·
+                          expires{" "}
+                          {submission.orders
+                            ? new Date(
+                                submission.orders.expires_at,
+                              ).toLocaleString()
+                            : "unknown"}
+                        </p>
+                      </div>
+                      <span className="h-fit rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold capitalize text-amber-700">
+                        {submission.status.replace("_", " ")}
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Customer-reported reference (unverified)
+                        </dt>
+                        <dd className="break-all font-mono">
+                          {submission.transaction_reference || "Not provided"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Customer note (unverified)
+                        </dt>
+                        <dd className="break-words">
+                          {submission.customer_note || "None"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <form
+                      className="mt-4 grid gap-3 border-t pt-4"
+                      onSubmit={(event) =>
+                        void reviewPaymentSubmission(event, submission.id)
+                      }
+                    >
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1 text-xs">
+                          <span>
+                            Independently confirmed amount (₹; approval only)
+                          </span>
+                          <Input
+                            name="verifiedAmount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            inputMode="decimal"
+                            placeholder="Check bank / merchant records"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs">
+                          <span>
+                            Independently confirmed transaction reference
+                          </span>
+                          <Input
+                            name="verifiedTransactionReference"
+                            maxLength={128}
+                            placeholder="Enter confirmed reference"
+                          />
+                        </label>
+                        <label className="space-y-1 text-xs sm:col-span-2">
+                          <span>
+                            Independently confirmed settlement time (approval
+                            only)
+                          </span>
+                          <Input
+                            name="verifiedSettlementTime"
+                            type="datetime-local"
+                          />
+                          <span className="block text-muted-foreground">
+                            For expired orders, the bank/merchant timestamp must
+                            be before the displayed order expiry.
+                          </span>
+                        </label>
+                      </div>
+                      <label className="space-y-1 text-xs">
+                        <span>Decision reason (required)</span>
+                        <Input
+                          name="reason"
+                          maxLength={1000}
+                          required
+                          placeholder="Record the reconciliation or follow-up reason"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="submit"
+                          size="sm"
+                          name="decision"
+                          value="approved"
+                        >
+                          Approve verified payment
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          name="decision"
+                          value="manual_review"
+                        >
+                          Needs follow-up
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          name="decision"
+                          value="rejected"
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+                No UPI submissions are waiting for review.
+              </p>
+            )}
+          </section>
+
+          <section className="admin-enter admin-stagger-1 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Gmail evidence
+                </p>
+                <h2 className="mt-1 text-2xl">Payment notification inbox</h2>
+                <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                  Gmail is polled only when an admin requests a scan. Parsed
+                  email is untrusted evidence, never proof of settlement; no
+                  order is auto-matched or auto-approved. Check the bank or
+                  merchant account independently.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={scanningGmail || refreshing}
+                onClick={() => void scanPaymentEmail()}
+              >
+                <RefreshCw
+                  className={`size-4 ${scanningGmail ? "animate-spin" : ""}`}
+                />
+                {scanningGmail ? "Scanning…" : "Scan Gmail"}
+              </Button>
+            </div>
+            {gmailEvents.length ? (
+              <ul className="mt-4 space-y-4">
+                {gmailEvents.map((event) => (
+                  <li key={event.id} className="rounded-xl border p-4">
+                    <div className="flex flex-wrap justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {event.payment_status === "received"
+                            ? "Received-payment notification parsed"
+                            : "Ambiguous payment email"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {event.received_at
+                            ? new Date(event.received_at).toLocaleString()
+                            : "Received time unavailable"}{" "}
+                          · DKIM{" "}
+                          {event.dkim_pass
+                            ? "passed configured check"
+                            : "not verified"}
+                        </p>
+                        <p className="mt-1 break-all text-xs text-muted-foreground">
+                          Sender: {event.sender ?? "unavailable"} · Gmail
+                          message {event.gmail_message_id}
+                        </p>
+                      </div>
+                      <span className="h-fit rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        manual review
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Parsed amount
+                        </dt>
+                        <dd>
+                          {event.amount_paise === null
+                            ? "Unclear"
+                            : formatPrice(event.amount_paise / 100)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Order ID explicitly present in email
+                        </dt>
+                        <dd className="break-all font-mono">
+                          {event.order_id_hint ??
+                            "None; amount is not used to match"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Transaction ID
+                        </dt>
+                        <dd className="break-all font-mono">
+                          {event.transaction_id ?? "Not parsed"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">UTR</dt>
+                        <dd className="break-all font-mono">
+                          {event.utr ?? "Not parsed"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {event.review_reason}
+                    </p>
+                    <form
+                      className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4"
+                      onSubmit={(formEvent) =>
+                        void reviewGmailEvent(formEvent, event.id)
+                      }
+                    >
+                      <label className="min-w-60 flex-1 space-y-1 text-xs">
+                        <span>Independent review note (required)</span>
+                        <Input
+                          name="reason"
+                          required
+                          maxLength={1000}
+                          placeholder="Record the result of checking the merchant/bank records"
+                        />
+                      </label>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        variant="outline"
+                        name="decision"
+                        value="reviewed"
+                      >
+                        Record review
+                      </Button>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        variant="outline"
+                        name="decision"
+                        value="rejected"
+                      >
+                        Reject evidence
+                      </Button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+                No Gmail payment notifications are awaiting review.
+              </p>
+            )}
+          </section>
+
+          <section className="admin-enter admin-stagger-1 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -869,11 +1355,13 @@ function AdminPage() {
                         {order.paid_at && (
                           <p>Paid {new Date(order.paid_at).toLocaleString()}</p>
                         )}
-                        {order.razorpay_payment_id && (
-                          <p className="font-mono">
-                            Payment {order.razorpay_payment_id}
-                          </p>
-                        )}
+                        {order.status === "pending" &&
+                          new Date(order.expires_at).getTime() <=
+                            Date.now() && (
+                            <p className="font-semibold text-amber-700">
+                              Payment request expired
+                            </p>
+                          )}
                       </div>
                     </div>
                   </article>
@@ -1269,8 +1757,9 @@ function AdminPage() {
             </p>
             <h2 className="mt-1 text-2xl">Reward delivery queue</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Queue items are created only after a verified Razorpay payment.
-              Delivery requires your server plugin/API.
+              Queue items are created only after an admin confirms payment. No
+              Minecraft worker is connected, so this dashboard cannot confirm or
+              mark rewards as delivered.
             </p>
             {queue.length ? (
               <ul className="mt-4 divide-y">
@@ -1292,38 +1781,6 @@ function AdminPage() {
                       {item.last_error && (
                         <p className="text-destructive">{item.last_error}</p>
                       )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          void updateQueueStatus(item.id, "processing")
-                        }
-                      >
-                        Processing
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          void updateQueueStatus(item.id, "delivered")
-                        }
-                      >
-                        Delivered
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          void updateQueueStatus(item.id, "failed")
-                        }
-                      >
-                        Failed
-                      </Button>
                     </div>
                   </li>
                 ))}

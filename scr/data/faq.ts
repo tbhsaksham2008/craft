@@ -9,7 +9,7 @@ export const faqs = [
   },
   {
     q: "How does checkout work?",
-    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and continue to Razorpay when checkout is enabled. A payment is recorded only after the server verifies it.",
+    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and create a UPI payment request. Payment is not confirmed by submitting a UTR or screenshot; an admin independently reconciles settlement before marking the order paid.",
   },
   {
     q: "How long does delivery take?",
@@ -33,7 +33,7 @@ export const faqs = [
   },
   {
     q: "Which payment methods are available?",
-    a: "When payment is enabled, checkout opens Razorpay and shows the payment methods available for your transaction. If checkout is unavailable, payment configuration may not be active; do not send payment details through chat or email.",
+    a: "Checkout displays a UPI ID and QR/payment intent that compatible UPI applications can open. FamApp compatibility depends on your device and app version. Never share your UPI PIN, password, or OTP. Payment remains pending until independently reconciled.",
   },
   {
     q: "Can I get a refund?",
@@ -41,7 +41,7 @@ export const faqs = [
   },
   {
     q: "What if I paid but cannot find my order?",
-    a: "Wait briefly for payment verification, then check your account's order history. If the order is still missing, contact support with the payment date, amount, Minecraft username, and Razorpay payment reference if available. Never send full card, bank, or UPI credentials.",
+    a: "Check your account's order history and request a manual review from the order payment page. A submitted reference or email does not prove settlement. If the order is still pending, contact support with the order ID; never send full card, bank, or UPI credentials.",
   },
   {
     q: "What if I entered the wrong Minecraft username?",
