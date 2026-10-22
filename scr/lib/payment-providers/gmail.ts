@@ -7,6 +7,7 @@ export type FamAppNotificationCandidate = {
   currency: "INR" | null;
   paymentStatus: "received" | "ambiguous";
   dkimPass: boolean;
+  senderAuthenticated: boolean;
   authenticationResult: string | null;
   orderIdHint: string | null;
   reviewReason: string;
@@ -113,6 +114,26 @@ export function parseFamAppNotification(input: {
     `(?:^|\\s)header\\.d=${escapedDomain}(?:\\s|$)`,
     "i",
   ).test(dkimResult);
+  const expectedSenderDomain =
+    input.configuredSender.split("@").at(-1)?.toLowerCase() ?? "";
+  const spfResult =
+    trustedAuthenticationResult.match(/(?:^|[;\s])spf=pass\b([^;]*)/i)?.[1] ??
+    "";
+  const spfDomain = spfResult
+    .match(/\bsmtp\.mailfrom=([^\s;]+)/i)?.[1]
+    ?.split("@")
+    .at(-1)
+    ?.toLowerCase();
+  const dmarcResult =
+    trustedAuthenticationResult.match(/(?:^|[;\s])dmarc=pass\b([^;]*)/i)?.[1] ??
+    "";
+  const dmarcDomain = dmarcResult
+    .match(/\bheader\.from=([^\s;]+)/i)?.[1]
+    ?.toLowerCase();
+  const senderAuthenticated =
+    dkimPass ||
+    spfDomain === expectedSenderDomain ||
+    dmarcDomain === expectedSenderDomain;
 
   const text = htmlToText(input.body);
   const transactionId =
@@ -131,9 +152,13 @@ export function parseFamAppNotification(input: {
     normalizedSender !== input.configuredSender.toLowerCase()
   )
     reasons.push("Sender did not match the configured notification address.");
-  if (!dkimPass)
+  if (!dkimPass && senderAuthenticated)
     reasons.push(
-      "A passing DKIM result for the configured domain was not present.",
+      "DKIM did not pass for the configured domain, but aligned SPF or DMARC did.",
+    );
+  else if (!senderAuthenticated)
+    reasons.push(
+      "No aligned DKIM, SPF, or DMARC pass was present for the configured sender.",
     );
   if (!received || amountPaise === null)
     reasons.push(
@@ -153,6 +178,7 @@ export function parseFamAppNotification(input: {
     currency: amountPaise === null ? null : "INR",
     paymentStatus: received && amountPaise !== null ? "received" : "ambiguous",
     dkimPass,
+    senderAuthenticated,
     authenticationResult,
     orderIdHint,
     reviewReason: reasons.length

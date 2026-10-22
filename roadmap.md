@@ -17,7 +17,7 @@
 - [x] Custom Bee, Fox, Parrot, and Wolf ranks with their supplied perks; unpriced ranks are visible but not purchasable
 - [x] Server-priced UPI payment intents and unique expiring orders
 - [x] Manual UPI reconciliation with admin identity, decision reason, and transaction deduplication
-- [x] Admin-triggered Gmail evidence ingestion using Gmail history cursors; email does not mark orders paid
+- [x] Gmail notification auto-approval only for authenticated senders with an explicit order ID, exact amount, unique transaction reference, and payment time inside the order window; all other messages stay in manual review
 - [x] Only manually reconciled orders create idempotent reward-fulfillment queue entries
 
 ## Setup required before production use
@@ -37,10 +37,10 @@
 6. To configure Gmail-assisted evidence collection:
    - In Google Cloud Console, create/select a project, enable the Gmail API, configure the OAuth consent screen, and add the mailbox account as a test user while the app is in testing.
    - Create an OAuth 2.0 client ID and client secret. In Google's OAuth 2.0 Playground, enable its option to use your own OAuth credentials, enter that client ID/secret, authorize only `https://www.googleapis.com/auth/gmail.readonly`, exchange the authorization code, and copy the refresh token. A Google API key alone cannot authorize access to private Gmail.
-   - Set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and `GMAIL_ACCOUNT_EMAIL` in the server environment only. Never use a `VITE_` prefix for these values.
+   - Set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and `GMAIL_ACCOUNT_EMAIL` in the server environment only. `GMAIL_ACCOUNT_EMAIL` must exactly match the mailbox used to authorize the refresh token. Never use a `VITE_` prefix for these values.
    - Set `FAMPAY_NOTIFICATION_SENDER` and `FAMPAY_NOTIFICATION_DKIM_DOMAIN` from the original message's full Gmail headers, not a screenshot or a visible From name. The configured DKIM check is an evidence-quality signal, not proof of payment.
    - Gmail's `gmail.readonly` scope is restricted. Complete Google's applicable OAuth app verification and security assessment requirements before production use; review current Google policies for the app's publishing status.
-7. The first admin Gmail scan only establishes a history cursor; later admin-triggered scans import new emails as manual-review evidence. Gmail notifications and user-submitted UTRs are not authoritative settlement proof and never mark orders paid. Independently reconcile every payment in the bank/merchant records before approving it.
+7. Admin Gmail scans import matching notifications from the previous 30 days and use a history cursor for newer mail. Older emails are not backfilled. Gmail auto-approval requires aligned DKIM, SPF, or DMARC authentication, an explicit order ID, exact amount, a unique transaction ID or UTR, and a notification timestamp inside the order's validity window. DKIM alone is not required. Messages that fail any check remain for manual review; never match by amount alone.
    - If Gmail reports an expired history cursor, do not silently reset it; reconcile the missed inbox interval manually before reinitializing the cursor.
 8. UPI expiry controls how long a payment intent is offered. Do not pay an expired request. An admin may reconcile a late-submitted claim only when independent bank/merchant records show the exact amount and transaction settled during that order's validity window.
 9. Restart the app after changing environment variables. Without Supabase and a merchant UPI ID, checkout is unavailable.

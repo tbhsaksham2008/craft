@@ -41,7 +41,7 @@ export const faqs = [
   },
   {
     q: "What if I paid but cannot find my order?",
-    a: "Check your account's order history and request a manual review from the order payment page. A submitted reference or email does not prove settlement. If the order is still pending, contact support with the order ID; never send full card, bank, or UPI credentials.",
+    a: "Check your account's order history. A matching authenticated payment notification with the exact order ID, amount, unique transaction reference, and payment time inside the order window may be accepted automatically. Otherwise, request a manual review from the order payment page. Never send full card, bank, or UPI credentials.",
   },
   {
     q: "What if I entered the wrong Minecraft username?",

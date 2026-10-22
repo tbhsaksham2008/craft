@@ -131,6 +131,7 @@ type GmailPaymentEventRow = {
   currency: string | null;
   payment_status: "received" | "ambiguous";
   dkim_pass: boolean;
+  sender_auth_pass: boolean;
   order_id_hint: string | null;
   review_status: "manual_review" | "reviewed" | "rejected";
   review_reason: string;
@@ -241,7 +242,7 @@ function AdminPage() {
           supabase
             .from("gmail_payment_events")
             .select(
-              "id,gmail_message_id,sender,received_at,transaction_id,utr,amount_paise,currency,payment_status,dkim_pass,order_id_hint,review_status,review_reason",
+              "id,gmail_message_id,sender,received_at,transaction_id,utr,amount_paise,currency,payment_status,dkim_pass,sender_auth_pass,order_id_hint,review_status,review_reason",
             )
             .eq("review_status", "manual_review")
             .order("received_at", { ascending: false })
@@ -923,7 +924,9 @@ function AdminPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Customer references and notes are unverified clues. Confirm the
               settlement and exact amount independently in your bank or merchant
-              records before approving. Gmail is not connected.
+              records before approving. When configured, Gmail evidence is
+              available in the notification inbox below and does not confirm
+              settlement.
             </p>
             {paymentSubmissions.length ? (
               <ul className="mt-4 space-y-4">
@@ -1076,9 +1079,10 @@ function AdminPage() {
                 <h2 className="mt-1 text-2xl">Payment notification inbox</h2>
                 <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                   Gmail is polled only when an admin requests a scan. Parsed
-                  email is untrusted evidence, never proof of settlement; no
-                  order is auto-matched or auto-approved. Check the bank or
-                  merchant account independently.
+                  email can auto-approve only when sender authentication passes,
+                  an explicit order ID and exact amount match, and a unique
+                  transaction reference is present within the order window. All
+                  other messages remain for manual review.
                 </p>
               </div>
               <Button
@@ -1108,10 +1112,12 @@ function AdminPage() {
                           {event.received_at
                             ? new Date(event.received_at).toLocaleString()
                             : "Received time unavailable"}{" "}
-                          · DKIM{" "}
-                          {event.dkim_pass
-                            ? "passed configured check"
+                          · Sender authentication{" "}
+                          {event.sender_auth_pass
+                            ? "passed (aligned SPF, DKIM, or DMARC)"
                             : "not verified"}
+                          {" · DKIM "}
+                          {event.dkim_pass ? "passed" : "not verified"}
                         </p>
                         <p className="mt-1 break-all text-xs text-muted-foreground">
                           Sender: {event.sender ?? "unavailable"} · Gmail

@@ -74,6 +74,31 @@ describe("FamApp payment email evidence parser", () => {
     expect(candidate.dkimPass).toBe(false);
   });
 
+  it("accepts aligned SPF or DMARC when DKIM is unavailable", () => {
+    const candidate = parseFamAppNotification({
+      headers: [
+        { name: "From", value: "FamApp <notify@example.test>" },
+        {
+          name: "Authentication-Results",
+          value:
+            "mx.google.com; dkim=fail header.d=other.test; spf=pass smtp.mailfrom=notify@example.test; dmarc=pass header.from=example.test",
+        },
+      ],
+      receivedAt: "2026-10-22T12:00:00.000Z",
+      body: [
+        "You have successfully received ₹50.00",
+        "Order ID: 6e4f70e6-9ea5-4cbb-9bbc-35db0de8b7f5",
+        "UTR: 123456789",
+      ].join("\n"),
+      configuredSender: "notify@example.test",
+      configuredDkimDomain: "example.test",
+    });
+
+    expect(candidate.dkimPass).toBe(false);
+    expect(candidate.senderAuthenticated).toBe(true);
+    expect(candidate.orderIdHint).toBe("6e4f70e6-9ea5-4cbb-9bbc-35db0de8b7f5");
+  });
+
   it("does not choose an order by amount alone", () => {
     const candidate = parseFamAppNotification({
       headers,

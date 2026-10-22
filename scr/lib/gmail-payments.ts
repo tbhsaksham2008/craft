@@ -16,6 +16,10 @@ type GmailHistoryResponse = {
   nextPageToken?: string;
   historyId?: string;
 };
+type GmailListResponse = {
+  messages?: Array<{ id?: string }>;
+  nextPageToken?: string;
+};
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -92,7 +96,7 @@ export const scanGmailPaymentNotifications = createServerFn({
     );
     if (profile.emailAddress.toLowerCase() !== expectedMailbox)
       throw new Error(
-        "The authorized Gmail mailbox does not match configuration.",
+        "The Gmail refresh token is authorized for a different mailbox than GMAIL_ACCOUNT_EMAIL. Set GMAIL_ACCOUNT_EMAIL to the mailbox used to authorize the refresh token, or create a refresh token for the configured mailbox.",
       );
 
     const { data: checkpoint, error: checkpointError } = await admin
@@ -105,52 +109,60 @@ export const scanGmailPaymentNotifications = createServerFn({
         `Could not read Gmail history checkpoint: ${checkpointError.message}`,
       );
 
-    if (!checkpoint) {
-      const { error } = await admin.from("gmail_payment_checkpoints").insert({
-        id: true,
-        history_id: profile.historyId,
-      });
-      if (error)
-        throw new Error(
-          `Could not initialize Gmail history checkpoint: ${error.message}`,
-        );
-      return {
-        initialized: true,
-        processed: 0,
-        message:
-          "Gmail history baseline saved. This scan did not import old messages; new notifications will be checked on the next scan.",
-      };
-    }
-
     const messageIds = new Set<string>();
+    let latestHistoryId = profile.historyId;
     let pageToken: string | undefined;
-    let latestHistoryId = checkpoint.history_id;
     do {
       const parameters = new URLSearchParams({
-        startHistoryId: checkpoint.history_id,
-        historyTypes: "messageAdded",
+        q: `from:${sender} newer_than:30d`,
         maxResults: "500",
       });
       if (pageToken) parameters.set("pageToken", pageToken);
-      const history = await gmailRequest<GmailHistoryResponse>(
-        `history?${parameters.toString()}`,
+      const result = await gmailRequest<GmailListResponse>(
+        `messages?${parameters.toString()}`,
         googleAccessToken,
       );
-      for (const change of history.history ?? []) {
-        for (const addition of change.messagesAdded ?? []) {
-          if (addition.message?.id) messageIds.add(addition.message.id);
-        }
+      for (const message of result.messages ?? []) {
+        if (message.id) messageIds.add(message.id);
       }
-      pageToken = history.nextPageToken;
-      latestHistoryId = history.historyId ?? latestHistoryId;
+      pageToken = result.nextPageToken;
       if (messageIds.size > 5000)
         throw new Error(
-          "More than 5000 new messages were found. Check Gmail configuration before processing.",
+          "More than 5000 recent matching messages were found. Narrow the Gmail search before processing.",
         );
     } while (pageToken);
 
+    if (checkpoint) {
+      let historyPageToken: string | undefined;
+      latestHistoryId = checkpoint.history_id;
+      do {
+        const parameters = new URLSearchParams({
+          startHistoryId: checkpoint.history_id,
+          historyTypes: "messageAdded",
+          maxResults: "500",
+        });
+        if (historyPageToken) parameters.set("pageToken", historyPageToken);
+        const history = await gmailRequest<GmailHistoryResponse>(
+          `history?${parameters.toString()}`,
+          googleAccessToken,
+        );
+        for (const change of history.history ?? []) {
+          for (const addition of change.messagesAdded ?? []) {
+            if (addition.message?.id) messageIds.add(addition.message.id);
+          }
+        }
+        historyPageToken = history.nextPageToken;
+        latestHistoryId = history.historyId ?? latestHistoryId;
+        if (messageIds.size > 5000)
+          throw new Error(
+            "More than 5000 new messages were found. Check Gmail configuration before processing.",
+          );
+      } while (historyPageToken);
+    }
+
     let processed = 0;
     let ignoredNonMatchingSenders = 0;
+    let autoApproved = 0;
     for (const messageId of messageIds) {
       const metadata = await gmailRequest<GmailMessage>(
         `messages/${encodeURIComponent(messageId)}?format=metadata&metadataHeaders=From`,
@@ -177,42 +189,68 @@ export const scanGmailPaymentNotifications = createServerFn({
         configuredDkimDomain: dkimDomain,
       });
       const orderIdHint = candidate.orderIdHint;
-      const { error } = await admin.rpc("record_gmail_payment_event", {
-        p_gmail_message_id: message.id,
-        p_sender: candidate.sender,
-        p_received_at: candidate.receivedAt,
-        p_transaction_id: candidate.transactionId,
-        p_utr: candidate.utr,
-        p_amount_paise: candidate.amountPaise,
-        p_currency: candidate.currency,
-        p_payment_status: candidate.paymentStatus,
-        p_dkim_pass: candidate.dkimPass,
-        p_authentication_result: candidate.authenticationResult,
-        p_order_id_hint: orderIdHint,
-        p_review_reason: candidate.reviewReason,
-      });
+      const { data: eventId, error } = await admin.rpc(
+        "record_gmail_payment_event",
+        {
+          p_gmail_message_id: message.id,
+          p_sender: candidate.sender,
+          p_received_at: candidate.receivedAt,
+          p_transaction_id: candidate.transactionId,
+          p_utr: candidate.utr,
+          p_amount_paise: candidate.amountPaise,
+          p_currency: candidate.currency,
+          p_payment_status: candidate.paymentStatus,
+          p_dkim_pass: candidate.dkimPass,
+          p_authentication_result: candidate.authenticationResult,
+          p_order_id_hint: orderIdHint,
+          p_review_reason: candidate.reviewReason,
+        },
+      );
       if (error)
         throw new Error(`Could not store Gmail evidence: ${error.message}`);
+      if (!eventId)
+        throw new Error("Gmail evidence was stored without an event ID.");
+      const { data: wasAutoApproved, error: approvalError } = await admin.rpc(
+        "auto_approve_gmail_payment_event",
+        {
+          p_event_id: eventId,
+          p_expected_sender: sender,
+          p_sender_authenticated: candidate.senderAuthenticated,
+        },
+      );
+      if (approvalError)
+        throw new Error(
+          `Could not automatically reconcile Gmail evidence: ${approvalError.message}`,
+        );
+      if (wasAutoApproved) autoApproved += 1;
       processed += 1;
     }
 
-    const { error: updateError } = await admin
-      .from("gmail_payment_checkpoints")
-      .update({
-        history_id: latestHistoryId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", true);
-    if (updateError)
+    const checkpointUpdate = {
+      history_id: latestHistoryId,
+      updated_at: new Date().toISOString(),
+    };
+    const { error: checkpointSaveError } = checkpoint
+      ? await admin
+          .from("gmail_payment_checkpoints")
+          .update(checkpointUpdate)
+          .eq("id", true)
+      : await admin.from("gmail_payment_checkpoints").insert({
+          id: true,
+          ...checkpointUpdate,
+        });
+    if (checkpointSaveError)
       throw new Error(
-        `Could not advance Gmail history checkpoint: ${updateError.message}`,
+        `Could not save Gmail history checkpoint: ${checkpointSaveError.message}`,
       );
 
     return {
-      initialized: false,
+      initialized: !checkpoint,
       processed,
+      autoApproved,
       ignoredNonMatchingSenders,
-      message:
-        "Matching Gmail messages were recorded as evidence only. Other senders were ignored. Nothing was automatically matched or marked paid.",
+      message: checkpoint
+        ? `${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically reconciled. Recent matching notifications and new messages were scanned; unmatched or unverified messages remain for manual review.`
+        : `Gmail history baseline saved. ${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically reconciled from recent matching notifications; unmatched or unverified messages remain for manual review.`,
     };
   });
