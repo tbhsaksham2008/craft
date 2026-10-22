@@ -52,7 +52,6 @@ function AccountPage() {
         ReturnType<NonNullable<typeof supabase>["auth"]["getSession"]>
       >["data"]["session"]
     >(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [username, setUsername] = useState("");
@@ -69,7 +68,6 @@ function AccountPage() {
     void supabase.auth.getSession().then(
       ({ data }) => {
         setSession(data.session);
-        setSessionLoading(false);
       },
       (error: unknown) => {
         setError(
@@ -77,13 +75,11 @@ function AccountPage() {
             ? `Could not restore your session: ${error.message}`
             : "Could not restore your session.",
         );
-        setSessionLoading(false);
       },
     );
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
         setSession(nextSession);
-        setSessionLoading(false);
       },
     );
     return () => listener.subscription.unsubscribe();
@@ -267,340 +263,323 @@ function AccountPage() {
 
   return (
     <main className="account-page">
-      {sessionLoading ? (
-        <div className="mx-auto flex min-h-[72vh] max-w-6xl items-center justify-center px-4 py-16">
-          <div
-            role="status"
-            className="account-enter flex items-center gap-3 rounded-2xl border bg-card/80 px-6 py-4 text-sm text-muted-foreground shadow-soft"
-          >
-            <span className="size-4 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
-            Opening your player portal…
-          </div>
-        </div>
-      ) : (
-        !session && (
-          <div className="mx-auto flex min-h-[72vh] max-w-6xl items-center px-4 py-16">
-            <div className="account-enter mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_32px_100px_-44px_oklch(0.45_0.16_290/0.45)] backdrop-blur-xl md:grid-cols-[1.05fr_0.95fr]">
-              <div className="relative hidden min-h-[620px] overflow-hidden bg-ink md:block">
-                <img
-                  src={heroImage}
-                  alt=""
-                  className="absolute inset-0 size-full object-cover opacity-80"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#15122b]/90 via-[#30214c]/25 to-[#15122b]/10" />
-                <div className="absolute left-8 top-8 flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm text-white backdrop-blur-xl">
-                  <Sparkles className="size-4 text-lilac" /> Your next chapter
-                  starts here
-                </div>
-                <div className="absolute inset-x-0 bottom-0 p-10 text-white">
-                  <p className="font-display text-sm uppercase tracking-[0.24em] text-white/65">
-                    CRAFT SMP · SURVIVAL, REIMAGINED
-                  </p>
-                  <h1 className="mt-4 max-w-lg text-5xl leading-[1.05]">
-                    Find your place in a world of your own.
-                  </h1>
-                  <p className="mt-4 max-w-md leading-7 text-white/75">
-                    Pick up where you left off, keep your rewards close, and
-                    make every adventure yours.
-                  </p>
-                  <div className="mt-8 flex items-center gap-3">
-                    <span className="grid size-9 place-items-center rounded-full bg-white/15">
-                      <Gamepad2 className="size-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold">
-                        The world is waiting
-                      </p>
-                      <p className="text-xs text-white/60">
-                        {site.serverAddress}
-                      </p>
-                    </div>
-                    <ArrowDownRight className="ml-auto size-5 text-white/60" />
-                  </div>
-                </div>
-                <span
-                  className="account-orb account-orb-one"
-                  aria-hidden="true"
-                />
-                <span
-                  className="account-orb account-orb-two"
-                  aria-hidden="true"
-                />
+      {!session && (
+        <div className="mx-auto flex min-h-[72vh] max-w-6xl items-center px-4 py-16">
+          <div className="account-enter mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_32px_100px_-44px_oklch(0.45_0.16_290/0.45)] backdrop-blur-xl md:grid-cols-[1.05fr_0.95fr]">
+            <div className="relative hidden min-h-[620px] overflow-hidden bg-ink md:block">
+              <img
+                src={heroImage}
+                alt=""
+                className="absolute inset-0 size-full object-cover opacity-80"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#15122b]/90 via-[#30214c]/25 to-[#15122b]/10" />
+              <div className="absolute left-8 top-8 flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-sm text-white backdrop-blur-xl">
+                <Sparkles className="size-4 text-lilac" /> Your next chapter
+                starts here
               </div>
-              <div className="flex flex-col justify-center p-6 sm:p-10 lg:p-14">
-                <Link
-                  to="/"
-                  className="mb-10 inline-flex w-fit items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span className="grid size-8 grid-cols-2 grid-rows-2 gap-0.5 rounded-lg bg-brand p-1 shadow-soft">
-                    <i className="rounded-sm bg-primary" />
-                    <i className="rounded-sm bg-lilac" />
-                    <i className="rounded-sm bg-blush" />
-                    <i className="rounded-sm bg-sky" />
-                  </span>
-                  Craft<span className="-ml-2 text-gradient">SMP</span>
-                </Link>
-                <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-brand text-foreground shadow-soft">
-                  {authMode === "signin" ? (
-                    <KeyRound className="size-5" />
-                  ) : (
-                    <Sparkles className="size-5" />
-                  )}
-                </span>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink">
-                  PLAYER PORTAL
+              <div className="absolute inset-x-0 bottom-0 p-10 text-white">
+                <p className="font-display text-sm uppercase tracking-[0.24em] text-white/65">
+                  CRAFT SMP · SURVIVAL, REIMAGINED
                 </p>
-                <h1 className="mt-2 text-4xl">
-                  {authMode === "signin"
-                    ? "Welcome back"
-                    : "Join the adventure"}
+                <h1 className="mt-4 max-w-lg text-5xl leading-[1.05]">
+                  Find your place in a world of your own.
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {authMode === "signin"
-                    ? "Your inventory, your orders, your world. Pick up right where you left off."
-                    : "Create your account to save your profile and keep every reward in one place."}
+                <p className="mt-4 max-w-md leading-7 text-white/75">
+                  Pick up where you left off, keep your rewards close, and make
+                  every adventure yours.
                 </p>
+                <div className="mt-8 flex items-center gap-3">
+                  <span className="grid size-9 place-items-center rounded-full bg-white/15">
+                    <Gamepad2 className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">
+                      The world is waiting
+                    </p>
+                    <p className="text-xs text-white/60">
+                      {site.serverAddress}
+                    </p>
+                  </div>
+                  <ArrowDownRight className="ml-auto size-5 text-white/60" />
+                </div>
+              </div>
+              <span
+                className="account-orb account-orb-one"
+                aria-hidden="true"
+              />
+              <span
+                className="account-orb account-orb-two"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="flex flex-col justify-center p-6 sm:p-10 lg:p-14">
+              <Link
+                to="/"
+                className="mb-10 inline-flex w-fit items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span className="grid size-8 grid-cols-2 grid-rows-2 gap-0.5 rounded-lg bg-brand p-1 shadow-soft">
+                  <i className="rounded-sm bg-primary" />
+                  <i className="rounded-sm bg-lilac" />
+                  <i className="rounded-sm bg-blush" />
+                  <i className="rounded-sm bg-sky" />
+                </span>
+                Craft<span className="-ml-2 text-gradient">SMP</span>
+              </Link>
+              <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-brand text-foreground shadow-soft">
+                {authMode === "signin" ? (
+                  <KeyRound className="size-5" />
+                ) : (
+                  <Sparkles className="size-5" />
+                )}
+              </span>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink">
+                PLAYER PORTAL
+              </p>
+              <h1 className="mt-2 text-4xl">
+                {authMode === "signin" ? "Welcome back" : "Join the adventure"}
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {authMode === "signin"
+                  ? "Your inventory, your orders, your world. Pick up right where you left off."
+                  : "Create your account to save your profile and keep every reward in one place."}
+              </p>
 
-                {!isSupabaseConfigured && (
-                  <div
-                    role="status"
-                    className="mt-5 rounded-xl border border-blush bg-blush/20 p-3 text-xs leading-5 text-foreground/80"
-                  >
-                    Account sign-in is not connected yet. Configure Supabase to
-                    enable player accounts.
-                  </div>
-                )}
-                {error && (
-                  <div
-                    role="alert"
-                    className="mt-6 flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-                  >
-                    <X className="mt-0.5 size-4 shrink-0" />
-                    {error}
-                  </div>
-                )}
-                {notice && (
-                  <div
-                    role="status"
-                    className="mt-6 flex gap-2 rounded-xl border border-success/30 bg-success/5 p-3 text-sm text-success"
-                  >
-                    <Check className="mt-0.5 size-4 shrink-0" />
-                    {notice}
-                  </div>
-                )}
-
-                <form
-                  key={authMode}
-                  onSubmit={
-                    authMode === "signin"
-                      ? submitAuth
-                      : (event) => {
-                          event.preventDefault();
-                          void signUp();
-                        }
-                  }
-                  className="account-form-enter mt-7 space-y-4"
+              {!isSupabaseConfigured && (
+                <div
+                  role="status"
+                  className="mt-5 rounded-xl border border-blush bg-blush/20 p-3 text-xs leading-5 text-foreground/80"
                 >
-                  {authMode === "signup" && (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="signup-minecraft"
-                        className="text-xs font-semibold"
-                      >
-                        Minecraft username{" "}
-                        <span className="font-normal text-muted-foreground">
-                          (optional for now)
-                        </span>
-                      </Label>
-                      <div className="relative">
-                        <Gamepad2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="signup-minecraft"
-                          autoComplete="off"
-                          maxLength={16}
-                          value={username}
-                          onChange={(event) =>
-                            setUsername(event.target.value.trim())
-                          }
-                          placeholder="Your in-game name"
-                          className="h-12 rounded-xl border-border/70 bg-white/80 pl-10 transition-shadow focus-visible:ring-2 focus-visible:ring-lilac/60"
-                        />
-                      </div>
-                    </div>
-                  )}
+                  Account sign-in is not connected yet. Configure Supabase to
+                  enable player accounts.
+                </div>
+              )}
+              {error && (
+                <div
+                  role="alert"
+                  className="mt-6 flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                >
+                  <X className="mt-0.5 size-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+              {notice && (
+                <div
+                  role="status"
+                  className="mt-6 flex gap-2 rounded-xl border border-success/30 bg-success/5 p-3 text-sm text-success"
+                >
+                  <Check className="mt-0.5 size-4 shrink-0" />
+                  {notice}
+                </div>
+              )}
+
+              <form
+                key={authMode}
+                onSubmit={
+                  authMode === "signin"
+                    ? submitAuth
+                    : (event) => {
+                        event.preventDefault();
+                        void signUp();
+                      }
+                }
+                className="account-form-enter mt-7 space-y-4"
+              >
+                {authMode === "signup" && (
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-xs font-semibold">
-                      Email address
+                    <Label
+                      htmlFor="signup-minecraft"
+                      className="text-xs font-semibold"
+                    >
+                      Minecraft username{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (optional for now)
+                      </span>
                     </Label>
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Gamepad2 className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        id="email"
-                        type="email"
-                        autoComplete="email"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        placeholder="you@example.com"
-                        required
+                        id="signup-minecraft"
+                        autoComplete="off"
+                        maxLength={16}
+                        value={username}
+                        onChange={(event) =>
+                          setUsername(event.target.value.trim())
+                        }
+                        placeholder="Your in-game name"
                         className="h-12 rounded-xl border-border/70 bg-white/80 pl-10 transition-shadow focus-visible:ring-2 focus-visible:ring-lilac/60"
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label
-                        htmlFor="password"
-                        className="text-xs font-semibold"
-                      >
-                        Password
-                      </Label>
-                      {authMode === "signin" && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!supabase || !email) {
-                              setError("Enter your email address first.");
-                              return;
-                            }
-                            setError("");
-                            setNotice("");
-                            const { error: resetError } =
-                              await supabase.auth.resetPasswordForEmail(email, {
-                                redirectTo: `${window.location.origin}/account`,
-                              });
-                            if (resetError) setError(resetError.message);
-                            else
-                              setNotice(
-                                "Password reset instructions are on their way to your email.",
-                              );
-                          }}
-                          className="text-xs font-medium text-ink transition-colors hover:text-foreground"
-                        >
-                          Forgot password?
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        autoComplete={
-                          authMode === "signin"
-                            ? "current-password"
-                            : "new-password"
-                        }
-                        minLength={8}
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        placeholder="At least 8 characters"
-                        required
-                        className="h-12 rounded-xl border-border/70 bg-white/80 px-10 transition-shadow focus-visible:ring-2 focus-visible:ring-lilac/60"
-                      />
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-xs font-semibold">
+                    Email address
+                  </Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="h-12 rounded-xl border-border/70 bg-white/80 pl-10 transition-shadow focus-visible:ring-2 focus-visible:ring-lilac/60"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="password" className="text-xs font-semibold">
+                      Password
+                    </Label>
+                    {authMode === "signin" && (
                       <button
                         type="button"
-                        onClick={() => setShowPassword((shown) => !shown)}
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={async () => {
+                          if (!supabase || !email) {
+                            setError("Enter your email address first.");
+                            return;
+                          }
+                          setError("");
+                          setNotice("");
+                          const { error: resetError } =
+                            await supabase.auth.resetPasswordForEmail(email, {
+                              redirectTo: `${window.location.origin}/account`,
+                            });
+                          if (resetError) setError(resetError.message);
+                          else
+                            setNotice(
+                              "Password reset instructions are on their way to your email.",
+                            );
+                        }}
+                        className="text-xs font-medium text-ink transition-colors hover:text-foreground"
                       >
-                        {showPassword ? (
-                          <EyeOff className="size-4" />
-                        ) : (
-                          <Eye className="size-4" />
-                        )}
+                        Forgot password?
                       </button>
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    variant="hero"
-                    size="lg"
-                    disabled={busy || !isSupabaseConfigured}
-                    className="group mt-2 h-12 w-full rounded-xl"
-                  >
-                    {busy
-                      ? "One moment…"
-                      : authMode === "signin"
-                        ? "Sign in to your account"
-                        : "Create your account"}
-                    {!busy && (
-                      <ArrowRight className="transition-transform group-hover:translate-x-1" />
                     )}
-                  </Button>
-                </form>
-
-                <div className="my-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  <span className="h-px flex-1 bg-border" />
-                  Or continue with
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {oauthProviders.map((provider) => (
-                    <Button
-                      key={provider.id}
+                  </div>
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete={
+                        authMode === "signin"
+                          ? "current-password"
+                          : "new-password"
+                      }
+                      minLength={8}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="At least 8 characters"
+                      required
+                      className="h-12 rounded-xl border-border/70 bg-white/80 px-10 transition-shadow focus-visible:ring-2 focus-visible:ring-lilac/60"
+                    />
+                    <button
                       type="button"
-                      variant="outline"
-                      disabled={busy || !isSupabaseConfigured}
-                      onClick={() => void signInWithOAuth(provider.id)}
-                      className="h-11 rounded-xl bg-white/70 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-soft"
+                      onClick={() => setShowPassword((shown) => !shown)}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      {provider.id === "google" ? (
-                        <GoogleMark />
+                      {showPassword ? (
+                        <EyeOff className="size-4" />
                       ) : (
-                        <DiscordMark />
+                        <Eye className="size-4" />
                       )}
-                      <span>{provider.label}</span>
-                    </Button>
-                  ))}
+                    </button>
+                  </div>
                 </div>
+                <Button
+                  type="submit"
+                  variant="hero"
+                  size="lg"
+                  disabled={busy || !isSupabaseConfigured}
+                  className="group mt-2 h-12 w-full rounded-xl"
+                >
+                  {busy
+                    ? "One moment…"
+                    : authMode === "signin"
+                      ? "Sign in to your account"
+                      : "Create your account"}
+                  {!busy && (
+                    <ArrowRight className="transition-transform group-hover:translate-x-1" />
+                  )}
+                </Button>
+              </form>
 
-                <p className="mt-7 text-center text-sm text-muted-foreground">
-                  {authMode === "signin"
-                    ? "New around here?"
-                    : "Already have an account?"}{" "}
-                  <button
-                    type="button"
-                    disabled={!isSupabaseConfigured}
-                    onClick={() => {
-                      setAuthMode(authMode === "signin" ? "signup" : "signin");
-                      setError("");
-                      setNotice("");
-                    }}
-                    className="font-semibold text-ink underline-offset-4 transition-colors hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {authMode === "signin"
-                      ? "Create an account"
-                      : "Sign in instead"}
-                  </button>
-                </p>
-                <div className="mt-8 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
-                  <ShieldCheck className="size-3.5 text-success" />
-                  Your account is protected and your details stay private.
-                </div>
+              <div className="my-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                Or continue with
+                <span className="h-px flex-1 bg-border" />
               </div>
-            </div>
-            <div className="mx-auto mt-6 flex max-w-5xl flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
-              <span>© {new Date().getFullYear()} Craft SMP</span>
-              <div className="flex items-center gap-5">
-                <Link
-                  to="/support"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+              <div className="grid grid-cols-2 gap-3">
+                {oauthProviders.map((provider) => (
+                  <Button
+                    key={provider.id}
+                    type="button"
+                    variant="outline"
+                    disabled={busy || !isSupabaseConfigured}
+                    onClick={() => void signInWithOAuth(provider.id)}
+                    className="h-11 rounded-xl bg-white/70 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-soft"
+                  >
+                    {provider.id === "google" ? (
+                      <GoogleMark />
+                    ) : (
+                      <DiscordMark />
+                    )}
+                    <span>{provider.label}</span>
+                  </Button>
+                ))}
+              </div>
+
+              <p className="mt-7 text-center text-sm text-muted-foreground">
+                {authMode === "signin"
+                  ? "New around here?"
+                  : "Already have an account?"}{" "}
+                <button
+                  type="button"
+                  disabled={!isSupabaseConfigured}
+                  onClick={() => {
+                    setAuthMode(authMode === "signin" ? "signup" : "signin");
+                    setError("");
+                    setNotice("");
+                  }}
+                  className="font-semibold text-ink underline-offset-4 transition-colors hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <CircleHelp className="size-3.5" />
-                  Need help?
-                </Link>
-                <Link
-                  to="/store"
-                  className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-                >
-                  Explore the store <ArrowRight className="size-3.5" />
-                </Link>
+                  {authMode === "signin"
+                    ? "Create an account"
+                    : "Sign in instead"}
+                </button>
+              </p>
+              <div className="mt-8 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+                <ShieldCheck className="size-3.5 text-success" />
+                Your account is protected and your details stay private.
               </div>
             </div>
           </div>
-        )
+          <div className="mx-auto mt-6 flex max-w-5xl flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
+            <span>© {new Date().getFullYear()} Craft SMP</span>
+            <div className="flex items-center gap-5">
+              <Link
+                to="/support"
+                className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+              >
+                <CircleHelp className="size-3.5" />
+                Need help?
+              </Link>
+              <Link
+                to="/store"
+                className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+              >
+                Explore the store <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
       {isSupabaseConfigured && session && (
         <AccountDashboard
