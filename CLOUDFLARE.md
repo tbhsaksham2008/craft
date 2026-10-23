@@ -9,8 +9,8 @@ Wrangler.
 1. In Cloudflare, create a Worker using **Workers Builds** and connect this
    repository.
 2. Set the project root to `/`.
-3. Use `npm run build` as the build command and
-   `npx wrangler deploy --config wrangler.jsonc` as the deploy command.
+3. Select Bun as the package manager, use `bun run build` as the build command,
+   and `bunx wrangler deploy --config wrangler.jsonc` as the deploy command.
 4. Add the public Supabase settings below to the build environment before the
    first deployment.
 5. Add the runtime variables and secrets in the Worker's **Settings →

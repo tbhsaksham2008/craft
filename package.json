@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview:cloudflare": "npm run build && wrangler dev --config wrangler.jsonc",
-    "deploy:cloudflare": "npm run build && wrangler deploy --config wrangler.jsonc",
+    "preview:cloudflare": "bun run build && bunx wrangler dev --config wrangler.jsonc",
+    "deploy:cloudflare": "bun run build && bunx wrangler deploy --config wrangler.jsonc",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
