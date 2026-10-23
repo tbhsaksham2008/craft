@@ -56,12 +56,25 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+// Nitro's Cloudflare/Vite wrapper calls this entry as fetch(request) only, so the
+// Worker `env` argument is undefined. Nitro stores the bindings on the request
+// (request.runtime.cloudflare.env) and on globalThis.__env__ instead.
+function resolveWorkerEnv(request: Request, env: unknown): unknown {
+  if (env && typeof env === "object") return env;
+  const fromRequest = (
+    request as { runtime?: { cloudflare?: { env?: unknown } } }
+  ).runtime?.cloudflare?.env;
+  if (fromRequest && typeof fromRequest === "object") return fromRequest;
+  return (globalThis as { __env__?: unknown }).__env__;
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    return runWithWorkerBindings(env, async () => {
+    const bindings = resolveWorkerEnv(request, env);
+    return runWithWorkerBindings(bindings, async () => {
       try {
         const handler = await getServerEntry();
-        const response = await handler.fetch(request, env, ctx);
+        const response = await handler.fetch(request, bindings, ctx);
         return await normalizeCatastrophicSsrResponse(response);
       } catch (error) {
         console.error(error);
