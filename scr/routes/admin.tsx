@@ -145,6 +145,12 @@ const envVarTests = [
 ] as const;
 
 type EnvVarName = (typeof envVarTests)[number]["name"];
+const secretEnvNames: readonly EnvVarName[] = [
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "GOOGLE_OAUTH_CLIENT_SECRET",
+  "GMAIL_REFRESH_TOKEN",
+  "MINECRAFT_PLUGIN_TOKEN",
+];
 
 const emptyProduct = {
   id: "",
@@ -199,6 +205,14 @@ function AdminPage() {
   const [envTestResults, setEnvTestResults] = useState<
     Partial<Record<EnvVarName, { success: boolean; message: string }>>
   >({});
+  const [envValues, setEnvValues] = useState<
+    Partial<Record<EnvVarName, string>>
+  >({});
+  const [cloudflareAccountId, setCloudflareAccountId] = useState("");
+  const [cloudflareApiToken, setCloudflareApiToken] = useState("");
+  const [savingEnvVariable, setSavingEnvVariable] = useState<EnvVarName | null>(
+    null,
+  );
   const [savingOrderStatus, setSavingOrderStatus] = useState<string | null>(
     null,
   );
@@ -678,6 +692,7 @@ function AdminPage() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          action: "test",
           name,
           accessToken: sessionData.session.access_token,
         }),
@@ -709,6 +724,68 @@ function AdminPage() {
       }));
     } finally {
       setTestingEnvVariable(null);
+    }
+  };
+
+  const saveEnvironmentVariable = async (name: EnvVarName) => {
+    if (!supabase) return;
+    const value = envValues[name];
+    if (!value?.trim()) {
+      setEnvTestResults((current) => ({
+        ...current,
+        [name]: { success: false, message: "Enter a value to save." },
+      }));
+      return;
+    }
+    setSavingEnvVariable(name);
+    setEnvTestResults((current) => ({ ...current, [name]: undefined }));
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        throw new Error("Sign in with an admin account first.");
+      }
+      const response = await fetch("/api/admin/test-env", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          name,
+          value,
+          accountId: cloudflareAccountId,
+          apiToken: cloudflareApiToken,
+          accessToken: sessionData.session.access_token,
+        }),
+      });
+      const result: {
+        success?: boolean;
+        message?: string;
+        error?: string;
+      } = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.error ?? `Save failed (HTTP ${response.status}).`,
+        );
+      }
+      setEnvValues((current) => ({ ...current, [name]: "" }));
+      setEnvTestResults((current) => ({
+        ...current,
+        [name]: { success: true, message: result.message ?? "Value saved." },
+      }));
+    } catch (saveError) {
+      setEnvTestResults((current) => ({
+        ...current,
+        [name]: {
+          success: false,
+          message:
+            saveError instanceof Error
+              ? saveError.message
+              : "Could not update the Worker variable.",
+        },
+      }));
+    } finally {
+      setSavingEnvVariable(null);
     }
   };
 
@@ -1729,13 +1806,53 @@ function AdminPage() {
             <h2 className="mt-1 text-2xl">Environment variable tests</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Test each setting separately. Secret values are checked on the
-              server and never displayed. Google and Gmail settings are tested
-              together because OAuth requires all four values.
+              server and never displayed. OAuth client tests require the client
+              ID and secret; Gmail tests also require the refresh token.
             </p>
+            <div className="mt-5 grid gap-4 rounded-xl border bg-muted/30 p-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="cloudflare-account-id">
+                  Cloudflare account ID
+                </Label>
+                <Input
+                  id="cloudflare-account-id"
+                  autoComplete="off"
+                  value={cloudflareAccountId}
+                  onChange={(event) =>
+                    setCloudflareAccountId(event.target.value)
+                  }
+                  placeholder="32-character account ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cloudflare-api-token">
+                  Cloudflare API token
+                </Label>
+                <Input
+                  id="cloudflare-api-token"
+                  type="password"
+                  autoComplete="new-password"
+                  value={cloudflareApiToken}
+                  onChange={(event) =>
+                    setCloudflareApiToken(event.target.value)
+                  }
+                  placeholder="Workers Scripts Write permission"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                The API token is kept only in this page's memory and sent over
+                HTTPS when saving. It is not stored by this app. Updates are
+                applied to the{" "}
+                <code className="font-mono">craft-smp-store</code> Worker as
+                secret bindings. VITE_ variables are embedded in the browser
+                during build and require a new build to take effect there.
+              </p>
+            </div>
             <ul className="mt-4 divide-y">
               {envVarTests.map(({ name, label }) => {
                 const result = envTestResults[name];
                 const isTesting = testingEnvVariable === name;
+                const isSaving = savingEnvVariable === name;
                 return (
                   <li
                     key={name}
@@ -1743,6 +1860,39 @@ function AdminPage() {
                   >
                     <div className="min-w-0">
                       <p className="font-medium">{label}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Input
+                          aria-label={`New value for ${label}`}
+                          autoComplete="new-password"
+                          type={
+                            secretEnvNames.includes(name) ? "password" : "text"
+                          }
+                          value={envValues[name] ?? ""}
+                          onChange={(event) =>
+                            setEnvValues((current) => ({
+                              ...current,
+                              [name]: event.target.value,
+                            }))
+                          }
+                          placeholder="Enter value to add or replace"
+                          className="max-w-md"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            savingEnvVariable !== null ||
+                            testingEnvVariable !== null ||
+                            !cloudflareAccountId.trim() ||
+                            !cloudflareApiToken.trim() ||
+                            !envValues[name]?.trim()
+                          }
+                          onClick={() => void saveEnvironmentVariable(name)}
+                        >
+                          {isSaving ? "Saving…" : "Add / update"}
+                        </Button>
+                      </div>
                       {result && (
                         <p
                           className={`mt-1 flex items-start gap-1.5 text-sm ${
@@ -1765,7 +1915,10 @@ function AdminPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={testingEnvVariable !== null}
+                      disabled={
+                        testingEnvVariable !== null ||
+                        savingEnvVariable !== null
+                      }
                       onClick={() => void testEnvironmentVariable(name)}
                     >
                       <RefreshCw

@@ -62,6 +62,23 @@ The Gmail and Minecraft integrations are optional if you are not using those
 features. Keep `MINECRAFT_PLUGIN_TOKEN` identical to the Paper plugin's token.
 Never place the Supabase service-role key in the Minecraft server or plugin.
 
+## Admin environment editor
+
+The admin dashboard can add or replace runtime Worker bindings for the
+`craft-smp-store` Worker. To use it, provide the Cloudflare account ID and an
+API token with the narrowest available **Workers Scripts Write** permission.
+The token is sent to the server only for the requested update, held in page
+memory, and not saved by the app. Do not use this editor on a production site
+unless you trust every admin account and have restricted the Cloudflare token
+to this Worker where possible.
+
+Cloudflare does not reveal existing secret values. Enter a new value to add or
+replace a binding; the editor cannot display or recover the current secret.
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are also compiled into the
+browser bundle, so updating their Worker bindings does not change the deployed
+client bundle. Update the Workers Builds build variables and rebuild to change
+the client-side Supabase configuration.
+
 ## Deploy and verify
 
 The repository includes Wrangler as a development dependency. From a local
