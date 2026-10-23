@@ -303,31 +303,30 @@ export const Route = createFileRoute("/api/admin/test-env")({
           const anonKey = requiredValue("VITE_SUPABASE_ANON_KEY");
           const authClient = createClient(url, anonKey, {
             auth: { persistSession: false, autoRefreshToken: false },
+            global: {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
           });
           const { data: userData, error: authError } =
-            await authClient.auth.getUser(accessToken);
+            await authClient.auth.getUser();
           if (authError || !userData.user) {
             return Response.json(
-              { success: false, error: "Sign in before testing settings." },
+              { success: false, error: "Admin access is required." },
               { status: 401 },
             );
           }
+          const { data: profile, error: profileError } = await authClient
+            .from("profiles")
+            .select("role")
+            .eq("id", userData.user.id)
+            .single();
+          if (profileError || profile?.role !== "admin") {
+            return Response.json(
+              { success: false, error: "Admin access is required." },
+              { status: 403 },
+            );
+          }
           if (action === "save") {
-            const { data: profile, error: profileError } = await authClient
-              .from("profiles")
-              .select("role")
-              .eq("id", userData.user.id)
-              .single();
-            if (profileError || profile?.role !== "admin") {
-              return Response.json(
-                {
-                  success: false,
-                  error:
-                    "Admin access is required to change environment settings.",
-                },
-                { status: 403 },
-              );
-            }
             const { accountId, apiToken, value } = body as {
               accountId?: unknown;
               apiToken?: unknown;
@@ -358,7 +357,7 @@ export const Route = createFileRoute("/api/admin/test-env")({
                 "Cloudflare accepted the secret update and created a Worker version. VITE_ values are build-time and still need a new build to update the browser bundle.",
             });
           }
-          if (action !== undefined && action !== "test") {
+          if (action !== "test") {
             return Response.json(
               { error: "Choose a valid environment variable action." },
               { status: 400 },

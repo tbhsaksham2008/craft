@@ -145,14 +145,18 @@ const adminSections = [
   { id: "overview", label: "Overview", Icon: LayoutDashboard },
   { id: "payments", label: "Payments", Icon: CreditCard },
   { id: "orders", label: "Orders", Icon: CalendarDays },
-  { id: "products", label: "Products", Icon: ShoppingBag },
-  { id: "voting", label: "Voting sites", Icon: Vote },
+  { id: "shop", label: "Shop", Icon: ShoppingBag },
+  { id: "vote", label: "Vote", Icon: Vote },
   { id: "promotions", label: "Promotions", Icon: Tags },
   { id: "fulfillment", label: "Fulfillment", Icon: ClipboardList },
-  { id: "configuration", label: "Configuration", Icon: Settings },
+  { id: "test", label: "Test", Icon: Settings },
 ] as const;
 
 type AdminSection = (typeof adminSections)[number]["id"];
+
+export function isAdminSection(value: string): value is AdminSection {
+  return adminSections.some((section) => section.id === value);
+}
 
 const envVarTests = [
   { name: "VITE_SUPABASE_URL", label: "Supabase URL" },
@@ -204,11 +208,15 @@ const emptyVotingSiteForm: VotingSiteForm = {
 export const Route = createFileRoute("/admin")({
   head: () =>
     seo("Admin", "Manage Craft SMP products, discounts and fulfillment."),
-  component: AdminPage,
+  component: () => <AdminPage initialSection="overview" />,
 });
 
-function AdminPage() {
-  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
+export function AdminPage({
+  initialSection,
+}: {
+  initialSection: AdminSection;
+}) {
+  const [activeSection] = useState<AdminSection>(initialSection);
   const [authorized, setAuthorized] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -607,51 +615,30 @@ function AdminPage() {
     setError("");
     setNotice("");
     try {
-      const { data: priorItems, error: lookupError } = await supabase
-        .from("order_items")
-        .select("id")
-        .eq("product_id", productToRemove.id)
-        .limit(1);
-      if (lookupError)
-        throw new Error(
-          `Could not check the product's order history: ${lookupError.message}`,
-        );
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productToRemove.id);
+      if (deleteError) throw deleteError;
 
-      if (priorItems?.length) {
-        const { error: updateError } = await supabase
-          .from("products")
-          .update({ enabled: false, updated_at: new Date().toISOString() })
-          .eq("id", productToRemove.id);
-        if (updateError) throw updateError;
-        setNotice(
-          `${productToRemove.name} was removed from the shop. It remains in past order records.`,
-        );
-      } else {
-        const { error: deleteError } = await supabase
-          .from("products")
-          .delete()
-          .eq("id", productToRemove.id);
-        if (deleteError) throw deleteError;
-
-        const imagePath = productImageStoragePath(productToRemove.image_url);
-        if (imagePath) {
-          const { error: storageError } = await supabase.storage
-            .from("product-images")
-            .remove([imagePath]);
-          if (storageError) {
-            console.error(
-              "Product was deleted but its image could not be removed",
-              storageError,
-            );
-            setNotice(
-              `${productToRemove.name} was deleted, but its uploaded image could not be removed.`,
-            );
-          } else {
-            setNotice(`${productToRemove.name} was deleted.`);
-          }
+      const imagePath = productImageStoragePath(productToRemove.image_url);
+      if (imagePath) {
+        const { error: storageError } = await supabase.storage
+          .from("product-images")
+          .remove([imagePath]);
+        if (storageError) {
+          console.error(
+            "Product was deleted but its image could not be removed",
+            storageError,
+          );
+          setNotice(
+            `${productToRemove.name} was permanently deleted, but its uploaded image could not be removed.`,
+          );
         } else {
-          setNotice(`${productToRemove.name} was deleted.`);
+          setNotice(`${productToRemove.name} was permanently deleted.`);
         }
+      } else {
+        setNotice(`${productToRemove.name} was permanently deleted.`);
       }
 
       if (editingId === productToRemove.id) {
@@ -805,7 +792,7 @@ function AdminPage() {
   }, [refresh]);
 
   const testEnvironmentVariable = async (name: EnvVarName) => {
-    if (!supabase) return;
+    if (!supabase || !authorized) return;
     setTestingEnvVariable(name);
     setEnvTestResults((current) => ({
       ...current,
@@ -858,7 +845,7 @@ function AdminPage() {
   };
 
   const saveEnvironmentVariable = async (name: EnvVarName) => {
-    if (!supabase) return;
+    if (!supabase || !authorized) return;
     const value = envValues[name];
     if (!value?.trim()) {
       setEnvTestResults((current) => ({
@@ -1017,70 +1004,14 @@ function AdminPage() {
         <p className="rounded-2xl border bg-card p-6">Checking admin access…</p>
       ) : !authorized ? (
         <div className="rounded-2xl border bg-card p-6">
-          {signedIn ? (
-            <>
-              <p>
-                Admin access is required to change environment settings. Signed
-                in users can still run configuration tests.
-              </p>
-              <h2 className="mt-6 text-xl font-semibold">
-                Environment variable tests
-              </h2>
-              <ul className="mt-3 divide-y">
-                {envVarTests.map(({ name, label }) => {
-                  const result = envTestResults[name];
-                  const isTesting = testingEnvVariable === name;
-                  return (
-                    <li
-                      key={name}
-                      className="flex flex-wrap items-center justify-between gap-3 py-3"
-                    >
-                      <div>
-                        <p className="font-medium">{label}</p>
-                        {result && (
-                          <p
-                            className={`mt-1 text-sm ${
-                              result.success
-                                ? "text-emerald-700 dark:text-emerald-400"
-                                : "text-destructive"
-                            }`}
-                            role="status"
-                          >
-                            {result.message}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          testingEnvVariable !== null ||
-                          savingEnvVariable !== null
-                        }
-                        onClick={() => void testEnvironmentVariable(name)}
-                      >
-                        <RefreshCw
-                          className={`size-4 ${isTesting ? "animate-spin" : ""}`}
-                        />
-                        {isTesting ? "Testing…" : "Test"}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          ) : (
-            <>
-              <p role="alert">
-                Sign in to test environment settings. Admin access is required
-                only to change them.
-              </p>
-              <Button asChild variant="outline" className="mt-4">
-                <Link to="/account">Go to account</Link>
-              </Button>
-            </>
-          )}
+          <p role="alert">
+            {signedIn
+              ? "You do not have administrator access to this dashboard."
+              : "Sign in with an administrator account to access this dashboard."}
+          </p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link to="/account">Go to account</Link>
+          </Button>
         </div>
       ) : (
         <div className="admin-dashboard space-y-6">
@@ -1126,9 +1057,9 @@ function AdminPage() {
                 <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-1">
                   {adminSections.map(({ id, label, Icon }) => (
                     <li key={id}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveSection(id)}
+                      <Link
+                        to="/admin/$section"
+                        params={{ section: id }}
                         aria-current={activeSection === id ? "page" : undefined}
                         className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                           activeSection === id
@@ -1138,7 +1069,7 @@ function AdminPage() {
                       >
                         <Icon className="size-4 shrink-0" />
                         <span>{label}</span>
-                      </button>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -1631,7 +1562,7 @@ function AdminPage() {
               </section>
 
               <section
-                hidden={activeSection !== "products"}
+                hidden={activeSection !== "shop"}
                 className="admin-enter admin-stagger-1 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1921,9 +1852,9 @@ function AdminPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Remove this product?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {productToRemove?.name} will be removed from the shop.
-                        If it appears in past orders, it will be hidden instead
-                        so order history is preserved.
+                        {productToRemove?.name} will be permanently deleted
+                        from the shop. Past order records will be preserved
+                        without a link to this product.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -1945,7 +1876,7 @@ function AdminPage() {
               </section>
 
               <section
-                hidden={activeSection !== "voting"}
+                hidden={activeSection !== "vote"}
                 className="admin-enter admin-stagger-2 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -2218,7 +2149,7 @@ function AdminPage() {
               </section>
 
               <section
-                hidden={activeSection !== "configuration"}
+                hidden={activeSection !== "test"}
                 className="admin-enter admin-stagger-3 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">

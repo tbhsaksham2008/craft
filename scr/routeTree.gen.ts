@@ -27,6 +27,7 @@ import { Route as StoreRouteImport } from './routes/store'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VoteRouteImport } from './routes/vote'
+import { Route as AdminSectionRouteImport } from './routes/admin.$section'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as ApiAdminTestEnvRouteImport } from './routes/api/admin/test-env'
 import { Route as ApiGameClaimRouteImport } from './routes/api/game/claim'
@@ -123,6 +124,11 @@ const VoteRoute = VoteRouteImport.update({
   path: '/vote',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSectionRoute = AdminSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => AdminRoute,
+} as any)
 const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
@@ -152,7 +158,7 @@ const ApiGameScanRoute = ApiGameScanRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/bundles': typeof BundlesRoute
   '/checkout': typeof CheckoutRoute
   '/coins': typeof CoinsRoute
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/vote': typeof VoteRoute
+  '/admin/$section': typeof AdminSectionRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -177,7 +184,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/bundles': typeof BundlesRoute
   '/checkout': typeof CheckoutRoute
   '/coins': typeof CoinsRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/vote': typeof VoteRoute
+  '/admin/$section': typeof AdminSectionRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -203,7 +211,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/bundles': typeof BundlesRoute
   '/checkout': typeof CheckoutRoute
   '/coins': typeof CoinsRoute
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/vote': typeof VoteRoute
+  '/admin/$section': typeof AdminSectionRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -246,6 +255,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/vote'
+    | '/admin/$section'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/vote'
+    | '/admin/$section'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/vote'
+    | '/admin/$section'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -306,7 +318,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  AdminRoute: typeof AdminRoute
+  AdminRoute: typeof AdminRouteWithChildren
   BundlesRoute: typeof BundlesRoute
   CheckoutRoute: typeof CheckoutRoute
   CoinsRoute: typeof CoinsRoute
@@ -457,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/$section': {
+      id: '/admin/$section'
+      path: '/$section'
+      fullPath: '/admin/$section'
+      preLoaderRoute: typeof AdminSectionRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/product/$id': {
       id: '/product/$id'
       path: '/product/$id'
@@ -495,10 +514,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminSectionRoute: typeof AdminSectionRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminSectionRoute: AdminSectionRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  AdminRoute: AdminRoute,
+  AdminRoute: AdminRouteWithChildren,
   BundlesRoute: BundlesRoute,
   CheckoutRoute: CheckoutRoute,
   CoinsRoute: CoinsRoute,
