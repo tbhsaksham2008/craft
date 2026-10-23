@@ -1,5 +1,5 @@
 store:
-  api-url: "https://your-store-domain.example"
+  api-url: "https://store.craftsmp.cc"
   token: "MINECRAFT_PLUGIN_TOKEN"
   request-timeout-seconds: 10
   join-delay-ticks: 20

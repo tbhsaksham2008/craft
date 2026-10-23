@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { requiredServerEnv } from "@/lib/server-env.server";
 
 const minecraftUsernamePattern = /^[A-Za-z0-9_]{3,16}$/;
 const commandPattern = /^[A-Za-z0-9_:.{} -]+$/;
@@ -32,12 +33,6 @@ export type DeliveryClaim = {
   commands: string[];
 };
 
-function requiredEnv(name: string) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing server configuration: ${name}`);
-  return value;
-}
-
 async function tokensMatch(provided: string, expected: string) {
   const encoder = new TextEncoder();
   const [providedHash, expectedHash] = await Promise.all([
@@ -57,7 +52,7 @@ async function tokensMatch(provided: string, expected: string) {
 }
 
 export async function getGameDeliveryClient(request: Request) {
-  const expectedToken = requiredEnv("MINECRAFT_PLUGIN_TOKEN");
+  const expectedToken = requiredServerEnv("MINECRAFT_PLUGIN_TOKEN");
   const providedToken = request.headers
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
@@ -66,8 +61,11 @@ export async function getGameDeliveryClient(request: Request) {
   }
 
   return createClient(
-    requiredEnv("VITE_SUPABASE_URL"),
-    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    requiredServerEnv(
+      "VITE_SUPABASE_URL",
+      import.meta.env["VITE_SUPABASE_URL"],
+    ),
+    requiredServerEnv("SUPABASE_SERVICE_ROLE_KEY"),
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }

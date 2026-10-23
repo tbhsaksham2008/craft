@@ -25,22 +25,29 @@ const orderLookupInput = z.object({
   orderId: z.string().uuid(),
 });
 
-function requiredEnv(name: string) {
+async function requiredEnv(name: string) {
+  const { getServerEnv, requiredServerEnv } =
+    await import("@/lib/server-env.server");
   const value =
     name === "VITE_SUPABASE_URL"
-      ? (import.meta.env["VITE_SUPABASE_URL"] ?? process.env[name])
+      ? (getServerEnv(name) ?? import.meta.env["VITE_SUPABASE_URL"])
       : name === "VITE_SUPABASE_ANON_KEY"
-        ? (import.meta.env["VITE_SUPABASE_ANON_KEY"] ?? process.env[name])
-        : process.env[name];
-  if (!value) throw new Error(`Missing server configuration: ${name}`);
-  return value;
+        ? (getServerEnv(name) ?? import.meta.env["VITE_SUPABASE_ANON_KEY"])
+        : undefined;
+  if (name.startsWith("VITE_")) {
+    if (!value) throw new Error(`Missing server configuration: ${name}`);
+    return value.trim();
+  }
+  return requiredServerEnv(name);
 }
 
 export async function getClients(accessToken: string) {
   const { createClient } = await import("@supabase/supabase-js");
-  const url = requiredEnv("VITE_SUPABASE_URL");
-  const anonKey = requiredEnv("VITE_SUPABASE_ANON_KEY");
-  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const [url, anonKey, serviceKey] = await Promise.all([
+    requiredEnv("VITE_SUPABASE_URL"),
+    requiredEnv("VITE_SUPABASE_ANON_KEY"),
+    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  ]);
   const authClient = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -54,8 +61,8 @@ export async function getClients(accessToken: string) {
   return { admin, authClient, user: data.user };
 }
 
-function merchantVpa() {
-  const vpa = requiredEnv("MERCHANT_UPI_ID").trim();
+async function merchantVpa() {
+  const vpa = await requiredEnv("MERCHANT_UPI_ID");
   if (!isValidUpiVpa(vpa))
     throw new Error("MERCHANT_UPI_ID must be a valid UPI ID.");
   return vpa;
@@ -64,7 +71,7 @@ function merchantVpa() {
 export const createUpiCheckoutOrder = createServerFn({ method: "POST" })
   .validator(orderInput)
   .handler(async ({ data }) => {
-    const vpa = merchantVpa();
+    const vpa = await merchantVpa();
     const { admin, user } = await getClients(data.accessToken);
     const productIds = data.items.map((item) => item.productId);
     const { data: products, error: productError } = await admin
@@ -199,7 +206,7 @@ export const getUpiOrderDetails = createServerFn({ method: "POST" })
     if (error || !order) throw new Error("Order not found in your account.");
     const status = order.status as
       "pending" | "paid" | "completed" | "rejected" | "cancelled" | "refunded";
-    const vpa = status === "pending" ? merchantVpa() : "";
+    const vpa = status === "pending" ? await merchantVpa() : "";
     return {
       orderId: order.id,
       amountPaise: order.total_paise,

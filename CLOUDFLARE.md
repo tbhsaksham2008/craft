@@ -19,6 +19,8 @@ Wrangler.
 The root `wrangler.jsonc` points Wrangler to Nitro's generated Worker entry and
 static assets. It enables Node.js compatibility for server-side dependencies
 and preserves variables added in the Cloudflare dashboard on later deploys.
+The Worker entry passes Cloudflare's request-scoped `env` bindings to server
+code; local development continues to read server values from `.env`.
 
 ## Build variables
 
@@ -82,8 +84,18 @@ Also verify that Supabase authentication redirects use the deployed site URL,
 that the site URL is listed in Supabase's allowed redirect URLs, and that the
 Minecraft plugin is configured with the deployed HTTPS URL.
 
-Cloudflare Workers expose configured variables and secrets to
-`process.env` with `nodejs_compat` and a compatibility date on or after
-2025-04-01; this Worker configuration enables both. Gmail scanning still needs
-the Gmail API/OAuth setup, and reward delivery requires the Paper plugin to be
-installed and running.
+Do not rely on `process.env` for deployed Worker configuration. Add server
+variables and secrets as Worker bindings under **Settings → Variables and
+Secrets**, or use Wrangler to set secrets. For example:
+
+```sh
+bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.jsonc
+bunx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET --config wrangler.jsonc
+bunx wrangler secret put GMAIL_REFRESH_TOKEN --config wrangler.jsonc
+bunx wrangler secret put MINECRAFT_PLUGIN_TOKEN --config wrangler.jsonc
+```
+
+After adding or changing bindings, redeploy the Worker (for a Workers Builds
+deployment, trigger a new deployment). Gmail scanning still needs the Gmail
+API/OAuth setup, and reward delivery requires the Paper plugin to be installed
+and running.

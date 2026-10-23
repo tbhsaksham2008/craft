@@ -28,12 +28,6 @@ type GmailListResponse = {
   nextPageToken?: string;
 };
 
-function requiredEnv(name: string) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing server configuration: ${name}`);
-  return value;
-}
-
 async function gmailRequest<T>(path: string, accessToken: string): Promise<T> {
   const response = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/${path}`,
@@ -50,13 +44,14 @@ async function gmailRequest<T>(path: string, accessToken: string): Promise<T> {
 }
 
 async function createGmailAccessToken() {
+  const { requiredServerEnv } = await import("@/lib/server-env.server");
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: requiredEnv("GOOGLE_OAUTH_CLIENT_ID"),
-      client_secret: requiredEnv("GOOGLE_OAUTH_CLIENT_SECRET"),
-      refresh_token: requiredEnv("GMAIL_REFRESH_TOKEN"),
+      client_id: requiredServerEnv("GOOGLE_OAUTH_CLIENT_ID"),
+      client_secret: requiredServerEnv("GOOGLE_OAUTH_CLIENT_SECRET"),
+      refresh_token: requiredServerEnv("GMAIL_REFRESH_TOKEN"),
       grant_type: "refresh_token",
     }),
     signal: AbortSignal.timeout(15_000),
@@ -88,11 +83,15 @@ async function requireAdmin(accessToken: string) {
 export async function scanGmailNotificationsWithAdmin(
   admin: Awaited<ReturnType<typeof requireAdmin>>,
 ) {
+  const { getServerEnv, requiredServerEnv } =
+    await import("@/lib/server-env.server");
   const sender = "no-reply@famapp.in";
   const dkimDomain =
-    process.env["FAMPAY_NOTIFICATION_DKIM_DOMAIN"]?.trim().toLowerCase() ||
+    getServerEnv("FAMPAY_NOTIFICATION_DKIM_DOMAIN")?.trim().toLowerCase() ||
     "famapp.in";
-  const expectedMailbox = requiredEnv("GMAIL_ACCOUNT_EMAIL").toLowerCase();
+  const expectedMailbox = requiredServerEnv(
+    "GMAIL_ACCOUNT_EMAIL",
+  ).toLowerCase();
   const googleAccessToken = await createGmailAccessToken();
   const profile = await gmailRequest<GmailProfile>(
     "profile",
