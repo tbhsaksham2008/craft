@@ -12,6 +12,7 @@
 - [x] Admin dashboard for products, discount codes, and fulfillment queue
 - [x] Admin product image uploads to a public Supabase Storage bucket
 - [x] Admin product removal, preserving products referenced by order history
+- [x] Public voting page with admin-managed, enable/disable voting sites
 - [x] Supabase row-level security for customer data and admin-only management
 - [x] INR pricing stored in paise, with legacy USD prices converted at ₹83/USD and rounded to whole rupees
 - [x] Custom Bee, Fox, Parrot, and Wolf ranks with their supplied perks; unpriced ranks are visible but not purchasable

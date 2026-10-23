@@ -40,6 +40,7 @@ import {
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { scanGmailPaymentNotifications } from "@/lib/gmail-payments";
 import { seo } from "@/lib/seo";
+import { normalizeVotingUrl, type VotingSite } from "@/lib/voting-sites";
 import type { Category, Product } from "@/data/products";
 import { formatPrice } from "@/config/site";
 
@@ -69,6 +70,13 @@ type DiscountRow = {
   percent_off: number;
   active: boolean;
   expires_at: string | null;
+};
+
+type VotingSiteForm = {
+  name: string;
+  url: string;
+  description: string;
+  enabled: boolean;
 };
 
 type QueueRow = {
@@ -168,6 +176,13 @@ const emptyProduct = {
   tint: "sky",
 };
 
+const emptyVotingSiteForm: VotingSiteForm = {
+  name: "",
+  url: "",
+  description: "",
+  enabled: true,
+};
+
 export const Route = createFileRoute("/admin")({
   head: () =>
     seo("Admin", "Manage Craft SMP products, discounts and fulfillment."),
@@ -180,6 +195,12 @@ function AdminPage() {
   const [checking, setChecking] = useState(true);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
+  const [votingSites, setVotingSites] = useState<VotingSite[]>([]);
+  const [votingSiteForm, setVotingSiteForm] =
+    useState<VotingSiteForm>(emptyVotingSiteForm);
+  const [editingVotingSiteId, setEditingVotingSiteId] = useState<string | null>(
+    null,
+  );
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [orders, setOrders] = useState<OrderHistoryRow[]>([]);
   const [gmailEvents, setGmailEvents] = useState<GmailPaymentEventRow[]>([]);
@@ -238,6 +259,7 @@ function AdminPage() {
         const [
           productResult,
           discountResult,
+          votingSiteResult,
           queueResult,
           orderResult,
           gmailEventResult,
@@ -247,6 +269,10 @@ function AdminPage() {
             .from("discount_codes")
             .select("id,code,percent_off,active,expires_at")
             .order("created_at", { ascending: false }),
+          supabase
+            .from("voting_sites")
+            .select("id,name,url,description,enabled")
+            .order("name"),
           supabase
             .from("fulfillment_queue")
             .select(
@@ -271,6 +297,7 @@ function AdminPage() {
         const issue =
           productResult.error ??
           discountResult.error ??
+          votingSiteResult.error ??
           queueResult.error ??
           orderResult.error ??
           gmailEventResult.error;
@@ -313,6 +340,7 @@ function AdminPage() {
         }
         setProducts(productResult.data ?? []);
         setDiscounts(discountResult.data ?? []);
+        setVotingSites((votingSiteResult.data ?? []) as VotingSite[]);
         setQueue((queueResult.data ?? []) as unknown as QueueRow[]);
         setGmailEvents(
           (gmailEventResult.data ?? []) as unknown as GmailPaymentEventRow[],
@@ -649,6 +677,79 @@ function AdminPage() {
     }
   };
 
+  const saveVotingSite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase) return;
+    setError("");
+    setNotice("");
+    const url = normalizeVotingUrl(votingSiteForm.url);
+    if (!url) {
+      setError("Enter a valid voting-site URL beginning with http:// or https://.");
+      return;
+    }
+    try {
+      const payload = {
+        name: votingSiteForm.name.trim(),
+        url,
+        description: votingSiteForm.description.trim(),
+        enabled: votingSiteForm.enabled,
+      };
+      const result = editingVotingSiteId
+        ? await supabase
+            .from("voting_sites")
+            .update(payload)
+            .eq("id", editingVotingSiteId)
+        : await supabase.from("voting_sites").insert(payload);
+      if (result.error) throw result.error;
+      setNotice(editingVotingSiteId ? "Voting site updated." : "Voting site added.");
+      setVotingSiteForm(emptyVotingSiteForm);
+      setEditingVotingSiteId(null);
+      await refresh();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? `Could not save voting site: ${saveError.message}`
+          : "Could not save voting site.",
+      );
+    }
+  };
+
+  const editVotingSite = (votingSite: VotingSite) => {
+    setEditingVotingSiteId(votingSite.id);
+    setVotingSiteForm({
+      name: votingSite.name,
+      url: votingSite.url,
+      description: votingSite.description,
+      enabled: votingSite.enabled,
+    });
+  };
+
+  const removeVotingSite = async (votingSite: VotingSite) => {
+    if (!supabase || !window.confirm(`Remove ${votingSite.name} from voting sites?`))
+      return;
+    setError("");
+    setNotice("");
+    try {
+      const { error: deleteError } = await supabase
+        .from("voting_sites")
+        .delete()
+        .eq("id", votingSite.id);
+      if (deleteError) throw deleteError;
+      if (editingVotingSiteId === votingSite.id) {
+        setEditingVotingSiteId(null);
+        setVotingSiteForm(emptyVotingSiteForm);
+      }
+      setNotice("Voting site removed.");
+      await refresh();
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? `Could not remove voting site: ${removeError.message}`
+          : "Could not remove voting site.",
+      );
+    }
+  };
+
   const scanPaymentEmail = useCallback(async () => {
     if (!supabase || scanningGmailRef.current) return;
     scanningGmailRef.current = true;
@@ -880,7 +981,7 @@ function AdminPage() {
   return (
     <InfoPage
       title="Admin dashboard"
-      sub="Manage your catalog, discount codes and reward delivery queue."
+      sub="Manage your catalog, voting links, discount codes and reward delivery queue."
     >
       {!isSupabaseConfigured ? (
         <p className="rounded-2xl border bg-card p-6">
@@ -970,8 +1071,8 @@ function AdminPage() {
                   <span className="text-gradient">in control.</span>
                 </h2>
                 <p className="mt-2 max-w-xl text-sm text-foreground/70">
-                  Keep products, promotions, and player rewards running
-                  smoothly.
+                  Keep products, voting links, promotions, and player rewards
+                  running smoothly.
                 </p>
               </div>
               <Button
@@ -1735,6 +1836,143 @@ function AdminPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </section>
+
+          <section className="admin-enter admin-stagger-2 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Community
+            </p>
+            <h2 className="mt-1 text-2xl">Voting sites</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add and manage the voting links shown on the public Vote page.
+              Disabled sites remain saved but are hidden from visitors.
+            </p>
+            <form
+              onSubmit={(event) => void saveVotingSite(event)}
+              className="mt-4 grid gap-4 sm:grid-cols-2"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="voting-site-name">Site name</Label>
+                <Input
+                  id="voting-site-name"
+                  value={votingSiteForm.name}
+                  onChange={(event) =>
+                    setVotingSiteForm((form) => ({
+                      ...form,
+                      name: event.target.value,
+                    }))
+                  }
+                  maxLength={80}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="voting-site-url">Voting URL</Label>
+                <Input
+                  id="voting-site-url"
+                  type="url"
+                  value={votingSiteForm.url}
+                  onChange={(event) =>
+                    setVotingSiteForm((form) => ({
+                      ...form,
+                      url: event.target.value,
+                    }))
+                  }
+                  placeholder="https://example.com/server"
+                  required
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="voting-site-description">
+                  Description (optional)
+                </Label>
+                <Input
+                  id="voting-site-description"
+                  value={votingSiteForm.description}
+                  onChange={(event) =>
+                    setVotingSiteForm((form) => ({
+                      ...form,
+                      description: event.target.value,
+                    }))
+                  }
+                  maxLength={240}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={votingSiteForm.enabled}
+                  onChange={(event) =>
+                    setVotingSiteForm((form) => ({
+                      ...form,
+                      enabled: event.target.checked,
+                    }))
+                  }
+                />
+                Show this site on the public Vote page
+              </label>
+              <div className="flex flex-wrap gap-2 sm:col-span-2">
+                <Button type="submit">
+                  {editingVotingSiteId ? "Save changes" : "Add voting site"}
+                </Button>
+                {editingVotingSiteId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingVotingSiteId(null);
+                      setVotingSiteForm(emptyVotingSiteForm);
+                    }}
+                  >
+                    Cancel edit
+                  </Button>
+                )}
+              </div>
+            </form>
+            {votingSites.length ? (
+              <ul className="mt-4 divide-y">
+                {votingSites.map((votingSite) => (
+                  <li
+                    key={votingSite.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {votingSite.name}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          · {votingSite.enabled ? "Visible" : "Hidden"}
+                        </span>
+                      </p>
+                      <p className="break-all text-sm text-muted-foreground">
+                        {votingSite.url}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => editVotingSite(votingSite)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => void removeVotingSite(votingSite)}
+                      >
+                        <Trash2 /> Remove
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+                No voting sites yet. Add one above to publish a voting link.
+              </p>
+            )}
           </section>
 
           <section className="admin-enter admin-stagger-2 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">

@@ -12,6 +12,7 @@ export const navLinks = [
   { to: "/crates", label: "Crates" },
   { to: "/coins", label: "Coins" },
   { to: "/community", label: "Community" },
+  { to: "/vote", label: "Vote" },
   { to: "/support", label: "Support" },
 ] as const;
 
