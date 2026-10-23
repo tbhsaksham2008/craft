@@ -315,15 +315,14 @@ function AccountPage() {
             <div className="flex flex-col justify-center p-6 sm:p-10 lg:p-14">
               <Link
                 to="/"
-                className="mb-10 inline-flex w-fit items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Craft SMP home"
+                className="mb-10 inline-flex w-fit items-center transition-opacity hover:opacity-80"
               >
-                <span className="grid size-8 grid-cols-2 grid-rows-2 gap-0.5 rounded-lg bg-brand p-1 shadow-soft">
-                  <i className="rounded-sm bg-primary" />
-                  <i className="rounded-sm bg-lilac" />
-                  <i className="rounded-sm bg-blush" />
-                  <i className="rounded-sm bg-sky" />
-                </span>
-                Craft<span className="-ml-2 text-gradient">SMP</span>
+                <img
+                  src="/craftlogo.webp"
+                  alt="Craft SMP"
+                  className="h-14 w-[140px] object-contain"
+                />
               </Link>
               <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-brand text-foreground shadow-soft">
                 {authMode === "signin" ? (

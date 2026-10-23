@@ -18,19 +18,16 @@ export const navLinks = [
 
 export function Logo() {
   return (
-    <Link to="/" className="flex items-center gap-2">
-      <span
-        className="grid size-9 grid-cols-2 grid-rows-2 gap-0.5 rounded-lg bg-card p-1 shadow-soft"
-        aria-hidden
-      >
-        <span className="rounded-sm bg-primary" />
-        <span className="rounded-sm bg-lilac" />
-        <span className="rounded-sm bg-blush" />
-        <span className="rounded-sm bg-sky" />
-      </span>
-      <span className="font-display text-xl">
-        Craft<span className="text-gradient">SMP</span>
-      </span>
+    <Link
+      to="/"
+      className="flex shrink-0 items-center"
+      aria-label="Craft SMP home"
+    >
+      <img
+        src="/craftlogo.webp"
+        alt="Craft SMP"
+        className="h-12 w-[110px] object-contain sm:w-[120px]"
+      />
     </Link>
   );
 }
