@@ -40,6 +40,15 @@ function VotePage() {
           setSites((data ?? []) as VotingSite[]);
         }
         setLoading(false);
+      })
+      .catch((queryError: unknown) => {
+        if (!active) return;
+        setError(
+          queryError instanceof Error
+            ? `Voting sites could not be loaded: ${queryError.message}`
+            : "Voting sites could not be loaded.",
+        );
+        setLoading(false);
       });
     return () => {
       active = false;
@@ -66,7 +75,10 @@ function VotePage() {
           Loading voting sites…
         </p>
       ) : error ? (
-        <p role="alert" className="rounded-2xl border border-destructive p-6 text-destructive">
+        <p
+          role="alert"
+          className="rounded-2xl border border-destructive p-6 text-destructive"
+        >
           {error}
         </p>
       ) : safeSites.length ? (
@@ -100,7 +112,9 @@ function VotePage() {
       ) : (
         <div className="rounded-2xl border border-dashed bg-card p-6 text-center">
           <Vote className="mx-auto size-8 text-muted-foreground" />
-          <h2 className="mt-3 text-xl font-semibold">Voting links coming soon</h2>
+          <h2 className="mt-3 text-xl font-semibold">
+            Voting links coming soon
+          </h2>
           <p className="mt-1">
             There are no voting sites configured right now. Check back later.
           </p>

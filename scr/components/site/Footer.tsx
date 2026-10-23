@@ -3,9 +3,36 @@ import { Logo } from "./Navbar";
 import { CopyIp } from "./ServerStatus";
 
 const cols = [
-  { title: "Store", links: [["/store", "All products"], ["/ranks", "Ranks"], ["/coins", "Coins"], ["/crates", "Crate keys"], ["/bundles", "Bundles"], ["/cosmetics", "Cosmetics"], ["/offers", "Special offers"]] },
-  { title: "Help", links: [["/support", "Support"], ["/faq", "FAQ"], ["/community", "Community"], ["/vote", "Vote"], ["/account", "Account"]] },
-  { title: "Legal", links: [["/terms", "Terms of Service"], ["/privacy", "Privacy Policy"], ["/refunds", "Refund Policy"]] },
+  {
+    title: "Store",
+    links: [
+      ["/store", "All products"],
+      ["/ranks", "Ranks"],
+      ["/coins", "Coins"],
+      ["/crates", "Crate keys"],
+      ["/bundles", "Bundles"],
+      ["/cosmetics", "Cosmetics"],
+      ["/offers", "Special offers"],
+    ],
+  },
+  {
+    title: "Help",
+    links: [
+      ["/support", "Support"],
+      ["/faq", "FAQ"],
+      ["/community", "Community"],
+      ["/vote", "Vote"],
+      ["/account", "Account"],
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      ["/terms", "Terms of Service"],
+      ["/privacy", "Privacy Policy"],
+      ["/refunds", "Refund Policy"],
+    ],
+  },
 ] as const;
 
 export function Footer() {
