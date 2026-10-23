@@ -5,6 +5,15 @@
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
+  "vars": {
+    "FAMPAY_NOTIFICATION_SENDER": "no-reply@famapp.in",
+    "GMAIL_ACCOUNT_EMAIL": "tbhsaksham05@gmail.com",
+    "GOOGLE_OAUTH_CLIENT_ID": "1004937986401-hggcqa71kbop95fi0l4lt61uo43nodjq.apps.googleusercontent.com",
+    "MERCHANT_UPI_ID": "6006889911@fam",
+    "MINECRAFT_PLUGIN_TOKEN": "MINECRAFT_PLUGIN_TOKEN",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqeG5zZWdod2JicGVwcXZtbmF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDE1MzcsImV4cCI6MjEwODE3NzUzN30.1YmttS_wfRwT9kqRqlyiVONvamwx6wP0R-ALmB7u0Ro",
+    "VITE_SUPABASE_URL": "https://ejxnseghwbbpepqvmnat.supabase.co",
+  },
   "no_bundle": true,
   "workers_dev": true,
   "assets": {
