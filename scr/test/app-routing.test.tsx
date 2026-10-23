@@ -28,4 +28,18 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it.each(["shop", "test", "vote"])(
+    "matches the admin %s subpage",
+    (section) => {
+      const router = createRouter({
+        routeTree,
+        context: { queryClient: new QueryClient() },
+      });
+
+      const matches = router.matchRoutes(`/admin/${section}`);
+
+      expect(matches.at(-1)?.routeId).toBe("/admin/$section");
+    },
+  );
 });

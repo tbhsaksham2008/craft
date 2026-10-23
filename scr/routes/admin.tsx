@@ -1848,8 +1848,8 @@ export function AdminPage({
                       <AlertDialogTitle>Remove this product?</AlertDialogTitle>
                       <AlertDialogDescription>
                         {productToRemove?.name} will be permanently deleted from
-                        the shop. Past order records will be preserved without
-                        a link to this product.
+                        the shop. Past orders keep their saved item details but
+                        will no longer link to this product.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

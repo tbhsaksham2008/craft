@@ -11,7 +11,7 @@
 - [x] Database catalog and discount codes, with server-side price and code validation
 - [x] Admin dashboard for products, discount codes, and fulfillment queue
 - [x] Admin product image uploads to a public Supabase Storage bucket
-- [x] Admin product removal, preserving products referenced by order history
+- [x] Admin product deletion, preserving historical order-item snapshots
 - [x] Public voting page with admin-managed, enable/disable voting sites
 - [x] Supabase row-level security for customer data and admin-only management
 - [x] INR pricing stored in paise, with legacy USD prices converted at ₹83/USD and rounded to whole rupees
@@ -29,7 +29,7 @@ For Cloudflare Workers hosting, configure the repository using the steps in
 environment and server credentials to Worker Variables and Secrets.
 
 1. Copy `.env.example` to `.env` and configure the Supabase URL, anon key, service-role key, and merchant UPI ID. Gmail OAuth is optional for UPI checkout; automatic Gmail matching is unavailable until Gmail is configured. The merchant VPA, Google OAuth client secret, Gmail refresh token, and service-role key must remain server-only. A Google API key is not sufficient for private Gmail access.
-2. If `supabase/config.toml` does not exist yet, initialize the CLI with `supabase init`; then link the project with `supabase link --project-ref <project-ref>` and apply all migrations with `supabase db push`. Migrations seed the product catalog, upgrade an existing USD/PayPal schema and convert product/order values at the fixed ₹83/USD rate, replace sample ranks, configure the public product image bucket with admin-only uploads, and create the voting-sites table with public read access to enabled links and admin-only editing.
+2. If `supabase/config.toml` does not exist yet, initialize the CLI with `supabase init`; then link the project with `supabase link --project-ref <project-ref>` and apply all migrations with `supabase db push`. Migrations seed the product catalog, upgrade an existing USD/PayPal schema and convert product/order values at the fixed ₹83/USD rate, replace sample ranks, configure the public product image bucket with admin-only uploads, create the voting-sites table with public read access to enabled links and admin-only editing, and preserve historical order-item snapshots when products are deleted.
 3. Enable email/password, Google, and Discord providers in Supabase Authentication. Add the local app URL (`http://localhost:8080/**`) to the allowed redirect URLs, and configure each OAuth provider to use Supabase's `/auth/v1/callback` URL.
 4. Promote the first admin account in the Supabase SQL editor after it has signed up:
 
