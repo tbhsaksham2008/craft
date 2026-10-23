@@ -16,13 +16,12 @@
 - [x] INR pricing stored in paise, with legacy USD prices converted at ₹83/USD and rounded to whole rupees
 - [x] Custom Bee, Fox, Parrot, and Wolf ranks with their supplied perks; unpriced ranks are visible but not purchasable
 - [x] Server-priced UPI payment intents and unique expiring orders
-- [x] Manual UPI reconciliation with admin identity, decision reason, and transaction deduplication
-- [x] Gmail notification auto-approval only for authenticated senders with an explicit order ID, exact amount, unique transaction reference, and payment time inside the order window; all other messages stay in manual review
-- [x] Only manually reconciled orders create idempotent reward-fulfillment queue entries
+- [x] Gmail notification auto-approval only for authenticated senders with an explicit order ID, exact amount, unique transaction reference, and payment time inside the order window; unmatched notifications remain pending
+- [x] Admin order-status editing with an audit trail and fulfillment queueing when marked paid
 
 ## Setup required before production use
 
-1. Copy `.env.example` to `.env` and configure the Supabase URL, anon key, service-role key, and merchant UPI ID. Gmail OAuth is optional for UPI checkout; until configured, use the bank/merchant records for manual reconciliation. The merchant VPA, Google OAuth client secret, Gmail refresh token, and service-role key must remain server-only. A Google API key is not sufficient for private Gmail access.
+1. Copy `.env.example` to `.env` and configure the Supabase URL, anon key, service-role key, and merchant UPI ID. Gmail OAuth is optional for UPI checkout; automatic Gmail matching is unavailable until Gmail is configured. The merchant VPA, Google OAuth client secret, Gmail refresh token, and service-role key must remain server-only. A Google API key is not sufficient for private Gmail access.
 2. If `supabase/config.toml` does not exist yet, initialize the CLI with `supabase init`; then link the project with `supabase link --project-ref <project-ref>` and apply all migrations with `supabase db push`. Migrations seed the product catalog, upgrade an existing USD/PayPal schema and convert product/order values at the fixed ₹83/USD rate, replace sample ranks, and configure the public product image bucket with admin-only uploads.
 3. Enable email/password, Google, and Discord providers in Supabase Authentication. Add the local app URL (`http://localhost:8080/**`) to the allowed redirect URLs, and configure each OAuth provider to use Supabase's `/auth/v1/callback` URL.
 4. Promote the first admin account in the Supabase SQL editor after it has signed up:
@@ -40,9 +39,9 @@
    - Set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and `GMAIL_ACCOUNT_EMAIL` in the server environment only. `GMAIL_ACCOUNT_EMAIL` must exactly match the mailbox used to authorize the refresh token. Never use a `VITE_` prefix for these values.
    - Set `FAMPAY_NOTIFICATION_SENDER` and `FAMPAY_NOTIFICATION_DKIM_DOMAIN` from the original message's full Gmail headers, not a screenshot or a visible From name. The configured DKIM check is an evidence-quality signal, not proof of payment.
    - Gmail's `gmail.readonly` scope is restricted. Complete Google's applicable OAuth app verification and security assessment requirements before production use; review current Google policies for the app's publishing status.
-7. Admin Gmail scans import matching notifications from the previous 30 days and use a history cursor for newer mail. Older emails are not backfilled. Gmail auto-approval requires aligned DKIM, SPF, or DMARC authentication, an explicit order ID, exact amount, a unique transaction ID or UTR, and a notification timestamp inside the order's validity window. DKIM alone is not required. Messages that fail any check remain for manual review; never match by amount alone.
+7. Admin Gmail scans import matching notifications from the previous 30 days and use a history cursor for newer mail. Older emails are not backfilled. Gmail auto-approval requires aligned DKIM, SPF, or DMARC authentication, an explicit order ID, exact amount, a unique transaction ID or UTR, and a notification timestamp inside the order's validity window. DKIM alone is not required. Messages that fail any check remain visible in the inbox but do not change order status; never match by amount alone.
    - If Gmail reports an expired history cursor, do not silently reset it; reconcile the missed inbox interval manually before reinitializing the cursor.
-8. UPI expiry controls how long a payment intent is offered. Do not pay an expired request. An admin may reconcile a late-submitted claim only when independent bank/merchant records show the exact amount and transaction settled during that order's validity window.
+8. UPI expiry controls how long a payment intent is offered. Do not pay an expired request. Admins can change an order's status from order history; marking an order paid queues its rewards.
 9. Restart the app after changing environment variables. Without Supabase and a merchant UPI ID, checkout is unavailable.
 
 ## Remaining external integration
@@ -60,6 +59,6 @@
 ## Payment verification boundary
 
 - A UPI intent/QR only pre-fills a payment request; it is not a FamApp merchant API and does not confirm settlement.
-- Gmail integration is an admin-triggered, incremental evidence collector. It stores message identifiers and parsed metadata, not message bodies, and requires a passing configured DKIM result to improve evidence quality.
-- Emails, sender headers, DKIM, transaction IDs, UTRs, and screenshots can be spoofed or duplicated and are never sufficient by themselves to mark an order paid. Approval requires an admin to independently reconcile the exact amount and transaction reference against bank/merchant records.
-- FamApp/FamPay official merchant verification/API access has not been established. Do not enable automatic settlement claims without an official, supported provider verification interface.
+- Gmail integration is an admin-triggered, incremental matcher. It stores message identifiers and parsed metadata, not message bodies. Automatic acceptance requires aligned DKIM, SPF, or DMARC authentication, an explicit order ID, exact amount, unique transaction reference, and a payment timestamp inside the order window.
+- This email-based acceptance is for testing and is not authoritative settlement verification: emails and headers can be spoofed or duplicated, and UPI QR/intents do not confirm that funds settled. Do not present it as production-grade payment verification.
+- FamApp/FamPay official merchant verification/API access has not been established. Use a supported provider verification interface before relying on automated payment settlement in production.

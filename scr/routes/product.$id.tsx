@@ -20,6 +20,7 @@ import { useCart } from "@/hooks/use-cart";
 import { seo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/product/$id")({
   loader: ({ params }) => ({ product: getProduct(params.id) ?? null }),
@@ -39,6 +40,7 @@ function ProductPage() {
   );
   const [loadError, setLoadError] = useState("");
   const { add } = useCart();
+  const { session, loading: authLoading } = useAuth();
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -155,16 +157,45 @@ function ProductPage() {
               </li>
             ))}
           </ul>
-          <Button
-            variant="hero"
-            size="lg"
-            className="mt-8 w-full sm:w-auto"
-            onClick={() => add(product)}
-            disabled={product.price <= 0}
-          >
-            <ShoppingCart />
-            {product.price > 0 ? "Add to cart" : "Price to be set"}
-          </Button>
+          {authLoading ? (
+            <Button
+              variant="hero"
+              size="lg"
+              className="mt-8 w-full sm:w-auto"
+              disabled
+            >
+              Checking sign-in…
+            </Button>
+          ) : session ? (
+            <Button
+              variant="hero"
+              size="lg"
+              className="mt-8 w-full sm:w-auto"
+              onClick={() => add(product)}
+              disabled={product.price <= 0}
+            >
+              <ShoppingCart />
+              {product.price > 0 ? "Add to cart" : "Price to be set"}
+            </Button>
+          ) : product.price > 0 ? (
+            <Button
+              asChild
+              variant="hero"
+              size="lg"
+              className="mt-8 w-full sm:w-auto"
+            >
+              <Link to="/account">Sign in to add to cart</Link>
+            </Button>
+          ) : (
+            <Button
+              variant="hero"
+              size="lg"
+              className="mt-8 w-full sm:w-auto"
+              disabled
+            >
+              Price to be set
+            </Button>
+          )}
           {product.single && (
             <p className="mt-3 text-sm text-muted-foreground">
               Limited to one per player.

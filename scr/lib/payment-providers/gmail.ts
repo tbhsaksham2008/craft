@@ -183,7 +183,7 @@ export function parseFamAppNotification(input: {
     orderIdHint,
     reviewReason: reasons.length
       ? reasons.join(" ")
-      : "Email is evidence only; independently reconcile settlement before approving.",
+      : "Email is evidence only; automatic order-matching requirements were not met.",
   };
 }
 

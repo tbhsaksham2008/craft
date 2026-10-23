@@ -7,11 +7,14 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import {
   activeProducts,
   productFromRecord,
   type Product,
 } from "@/data/products";
+import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 
 export interface CartLine {
@@ -35,22 +38,50 @@ const KEY = "craftsmp-cart";
 export const MAX_QTY = 99;
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { session, loading: authLoading } = useAuth();
   const [raw, setRaw] = useState<CartLine[]>([]);
   const [catalog, setCatalog] = useState<Product[]>(activeProducts());
-  const [loaded, setLoaded] = useState(false);
+  const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const storageKey = session ? `${KEY}:${session.user.id}` : null;
 
   useEffect(() => {
-    try {
-      setRaw(JSON.parse(localStorage.getItem(KEY) || "[]"));
-    } catch {
-      /* ignore */
+    if (authLoading) return;
+    if (!session || !storageKey) {
+      setRaw([]);
+      setOpen(false);
+      setLoadedForUser(null);
+      return;
     }
-    setLoaded(true);
-  }, []);
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      if (
+        Array.isArray(saved) &&
+        saved.every(
+          (line) =>
+            line &&
+            typeof line.id === "string" &&
+            Number.isInteger(line.qty) &&
+            line.qty > 0,
+        )
+      ) {
+        setRaw(saved);
+      } else {
+        throw new Error("Saved cart data is invalid.");
+      }
+    } catch (error) {
+      console.error("Could not restore your cart", error);
+      toast.error("Could not restore your cart. Start a new cart.");
+      setRaw([]);
+    }
+    setLoadedForUser(session.user.id);
+  }, [authLoading, session, storageKey]);
+
   useEffect(() => {
-    if (loaded) localStorage.setItem(KEY, JSON.stringify(raw));
-  }, [raw, loaded]);
+    if (session && storageKey && loadedForUser === session.user.id)
+      localStorage.setItem(storageKey, JSON.stringify(raw));
+  }, [raw, loadedForUser, session, storageKey]);
+
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -81,13 +112,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [session]);
 
   const value = useMemo<CartCtx>(() => {
-    const lines = raw.flatMap((l) => {
-      const product = catalog.find((item) => item.id === l.id && item.enabled);
-      return product ? [{ ...l, product }] : [];
-    });
+    const lines = session
+      ? raw.flatMap((l) => {
+          const product = catalog.find(
+            (item) => item.id === l.id && item.enabled,
+          );
+          return product ? [{ ...l, product }] : [];
+        })
+      : [];
     return {
       lines,
       count: lines.reduce((s, l) => s + l.qty, 0),
@@ -96,8 +131,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
           lines.reduce((s, l) => s + l.qty * l.product.price, 0) * 100,
         ) / 100,
       open,
-      setOpen,
+      setOpen: (nextOpen) => {
+        if (nextOpen && !session) {
+          toast.info(
+            <div className="flex items-center gap-3">
+              <span>Sign in to use your cart.</span>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/account">Sign in</Link>
+              </Button>
+            </div>,
+          );
+          return;
+        }
+        setOpen(nextOpen);
+      },
       add: (p) => {
+        if (!session) {
+          toast.info(
+            <div className="flex items-center gap-3">
+              <span>Sign in to add items to your cart.</span>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/account">Sign in</Link>
+              </Button>
+            </div>,
+          );
+          return;
+        }
         if (p.price <= 0) {
           toast.info(`${p.name} will be available after its price is set`);
           return;
@@ -131,7 +190,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       clear: () => setRaw([]),
     };
-  }, [raw, open, catalog]);
+  }, [raw, open, catalog, session]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

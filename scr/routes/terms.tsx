@@ -79,11 +79,12 @@ export const Route = createFileRoute("/terms")({
 
       <h2>6. Payments and refunds</h2>
       <p>
-        Checkout may display a UPI payment request. A UPI intent, email, UTR, or
-        screenshot does not itself confirm settlement; an order is marked paid
-        only after the payment is independently reconciled. Refunds are not
-        offered for completed purchases except where required by applicable law.
-        Read the{" "}
+        Checkout may display a UPI payment request. A matching authenticated
+        Gmail notification can automatically mark an order paid when it contains
+        the exact order ID, amount, unique transaction reference, and a payment
+        timestamp inside the order window. Other notifications do not change
+        order status. Refunds are not offered for completed purchases except
+        where required by applicable law. Read the{" "}
         <Link to="/refunds" className="text-ink underline">
           Refund Policy
         </Link>{" "}

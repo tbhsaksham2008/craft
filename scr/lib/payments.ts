@@ -25,13 +25,6 @@ const orderLookupInput = z.object({
   orderId: z.string().uuid(),
 });
 
-const paymentSubmissionInput = z.object({
-  accessToken: z.string().min(1),
-  orderId: z.string().uuid(),
-  transactionReference: z.string().trim().max(128).optional(),
-  customerNote: z.string().trim().max(1000).optional(),
-});
-
 function requiredEnv(name: string) {
   const value =
     name === "VITE_SUPABASE_URL"
@@ -218,23 +211,4 @@ export const getUpiOrderDetails = createServerFn({ method: "POST" })
       expiresAt: order.expires_at,
       status: "pending" as const,
     };
-  });
-
-export const submitUpiPaymentForReview = createServerFn({ method: "POST" })
-  .validator(paymentSubmissionInput)
-  .handler(async ({ data }) => {
-    const { authClient } = await getClients(data.accessToken);
-    const { data: submissionId, error } = await authClient.rpc(
-      "submit_upi_payment",
-      {
-        p_order_id: data.orderId,
-        p_transaction_reference: data.transactionReference || null,
-        p_customer_note: data.customerNote || null,
-      },
-    );
-    if (error)
-      throw new Error(`Could not submit payment details: ${error.message}`);
-    if (!submissionId)
-      throw new Error("Payment details could not be saved for review.");
-    return { submissionId };
   });

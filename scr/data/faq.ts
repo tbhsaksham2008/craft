@@ -9,11 +9,11 @@ export const faqs = [
   },
   {
     q: "How does checkout work?",
-    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and create a UPI payment request. Payment is not confirmed by submitting a UTR or screenshot; an admin independently reconciles settlement before marking the order paid.",
+    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and create a UPI payment request. Matching authenticated Gmail notifications are processed automatically during an admin scan; unmatched notifications leave the order pending.",
   },
   {
     q: "How long does delivery take?",
-    a: "After payment verification, the order is placed in the reward-delivery queue. Game-server delivery is not currently automated, so queueing does not mean the item has already arrived in-game. Contact support with your order ID if you need an update.",
+    a: "After an order is marked paid, it is placed in the reward-delivery queue. Game-server delivery is not currently automated, so queueing does not mean the item has already arrived in-game. Contact support with your order ID if you need an update.",
   },
   {
     q: "What if I am offline when a reward is processed?",
@@ -33,7 +33,7 @@ export const faqs = [
   },
   {
     q: "Which payment methods are available?",
-    a: "Checkout displays a UPI ID and QR/payment intent that compatible UPI applications can open. FamApp compatibility depends on your device and app version. Never share your UPI PIN, password, or OTP. Payment remains pending until independently reconciled.",
+    a: "Checkout displays a UPI ID and QR/payment intent that compatible UPI applications can open. FamApp compatibility depends on your device and app version. Never share your UPI PIN, password, or OTP. Matching authenticated Gmail notifications are processed automatically during an admin scan; unmatched payments remain pending.",
   },
   {
     q: "Can I get a refund?",
@@ -41,7 +41,7 @@ export const faqs = [
   },
   {
     q: "What if I paid but cannot find my order?",
-    a: "Check your account's order history. A matching authenticated payment notification with the exact order ID, amount, unique transaction reference, and payment time inside the order window may be accepted automatically. Otherwise, request a manual review from the order payment page. Never send full card, bank, or UPI credentials.",
+    a: "Check your account's order history. An authenticated Gmail notification must contain the exact order ID, amount, a unique transaction reference, and a payment time inside the order window to be accepted automatically. The admin can scan Gmail again; unmatched notifications remain pending. Never send full card, bank, or UPI credentials.",
   },
   {
     q: "What if I entered the wrong Minecraft username?",

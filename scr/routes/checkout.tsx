@@ -11,11 +11,7 @@ import { QtyControl } from "@/components/site/CartDrawer";
 import { useCart } from "@/hooks/use-cart";
 import { formatPrice } from "@/config/site";
 import { isValidMinecraftName } from "@/lib/minecraft";
-import {
-  createUpiCheckoutOrder,
-  getUpiOrderDetails,
-  submitUpiPaymentForReview,
-} from "@/lib/payments";
+import { createUpiCheckoutOrder, getUpiOrderDetails } from "@/lib/payments";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { seo } from "@/lib/seo";
 
@@ -54,11 +50,6 @@ function Checkout() {
   const [busy, setBusy] = useState(false);
   const [payment, setPayment] = useState<PendingPayment | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const [transactionReference, setTransactionReference] = useState("");
-  const [customerNote, setCustomerNote] = useState("");
-  const [reviewRequested, setReviewRequested] = useState(false);
-  const [reviewBusy, setReviewBusy] = useState(false);
-  const [confirmedManualReview, setConfirmedManualReview] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const valid = isValidMinecraftName(name);
 
@@ -193,7 +184,7 @@ function Checkout() {
       setPayment(result);
       clear();
       setMessage(
-        "Order created. Complete the UPI payment, then request a manual payment review.",
+        "Order created. Complete the UPI payment; matching authenticated Gmail notifications are processed automatically after an admin scan.",
       );
     } catch (checkoutError) {
       setError(
@@ -206,48 +197,13 @@ function Checkout() {
     }
   };
 
-  const submitPaymentDetails = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (
-      !payment ||
-      !session?.access_token ||
-      !confirmedManualReview ||
-      reviewRequested
-    )
-      return;
-    setReviewBusy(true);
-    setError("");
-    try {
-      await submitUpiPaymentForReview({
-        data: {
-          accessToken: session.access_token,
-          orderId: payment.orderId,
-          transactionReference: transactionReference.trim() || undefined,
-          customerNote: customerNote.trim() || undefined,
-        },
-      });
-      setReviewRequested(true);
-      setMessage(
-        "Your details were submitted for manual reconciliation. This is not payment confirmation.",
-      );
-    } catch (submissionError) {
-      setError(
-        submissionError instanceof Error
-          ? submissionError.message
-          : "Could not submit payment details for review.",
-      );
-    } finally {
-      setReviewBusy(false);
-    }
-  };
-
   if (payment) {
     const paymentExpired = currentTime >= new Date(payment.expiresAt).getTime();
     return (
       <>
         <PageHeader
           title="Complete your UPI payment"
-          sub="Your order is saved. Payment is reconciled manually before rewards are queued."
+          sub="Your order is saved. Matching payment notifications update its status automatically."
         />
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
           <section className="rounded-2xl border bg-card p-6 shadow-soft sm:p-8">
@@ -312,80 +268,20 @@ function Checkout() {
             <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
               <AlertTriangle className="size-5 shrink-0 text-amber-700" />
               <p>
-                Sending money, entering a UTR, or sharing a screenshot does not
-                prove settlement. Do not pay an expired request. An admin must
-                independently reconcile the payment before the order is marked
-                paid.
+                Payment is accepted automatically only when a notification from
+                the authenticated merchant sender includes this exact order ID,
+                amount, and a unique transaction reference during the order
+                validity window. Gmail scans are started by an admin.
+                Notifications without an exact order match remain pending. Do
+                not pay an expired request or pay twice.
               </p>
             </div>
-            {reviewRequested ? (
-              <p role="status" className="text-sm text-success">
-                {message}
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
               </p>
-            ) : (
-              <form onSubmit={(event) => void submitPaymentDetails(event)}>
-                <div className="space-y-2">
-                  <Label htmlFor="upi-reference">
-                    UPI transaction reference (optional)
-                  </Label>
-                  <Input
-                    id="upi-reference"
-                    value={transactionReference}
-                    onChange={(event) =>
-                      setTransactionReference(event.target.value)
-                    }
-                    maxLength={128}
-                    autoComplete="off"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This is only a search clue for an admin, not proof of
-                    payment. Never enter your UPI PIN, password, or OTP.
-                    {paymentExpired &&
-                      " For an expired order, submit details only if you already paid before the expiry; do not pay now."}
-                  </p>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="upi-note">Note for support (optional)</Label>
-                  <Input
-                    id="upi-note"
-                    value={customerNote}
-                    onChange={(event) => setCustomerNote(event.target.value)}
-                    maxLength={1000}
-                  />
-                </div>
-                <label className="mt-4 flex items-start gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={confirmedManualReview}
-                    onChange={(event) =>
-                      setConfirmedManualReview(event.target.checked)
-                    }
-                    className="mt-1"
-                  />
-                  {paymentExpired
-                    ? "I already completed payment before expiry; I understand this requests review only and does not confirm payment."
-                    : "I understand this only requests a manual review and does not confirm payment."}
-                </label>
-                {error && (
-                  <p role="alert" className="mt-3 text-sm text-destructive">
-                    {error}
-                  </p>
-                )}
-                <Button
-                  type="submit"
-                  variant="hero"
-                  className="mt-5 w-full"
-                  disabled={!confirmedManualReview || reviewBusy || !session}
-                >
-                  {paymentExpired
-                    ? "Request review of an earlier payment"
-                    : reviewBusy
-                      ? "Submitting…"
-                      : "Request manual payment review"}
-                </Button>
-              </form>
             )}
-            {message && !reviewRequested && (
+            {message && (
               <p role="status" className="text-sm text-success">
                 {message}
               </p>
@@ -537,7 +433,7 @@ function Checkout() {
               <FlaskConical className="size-4" />
             )}
             {isSupabaseConfigured
-              ? "UPI checkout creates a payment request. An admin must independently reconcile the payment."
+              ? "UPI checkout creates a payment request. Matching authenticated Gmail notifications are processed automatically when an admin scans the inbox."
               : "No payment provider is configured."}
           </div>
           {error && (

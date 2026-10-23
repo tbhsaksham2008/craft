@@ -5,6 +5,7 @@ import { useCart } from "@/hooks/use-cart";
 import { discountPct, isOnSale, type Product } from "@/data/products";
 import { formatPrice } from "@/config/site";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 export const tintBg: Record<Product["tint"], string> = {
   sky: "bg-sky/60",
@@ -37,6 +38,7 @@ export function PriceDisplay({
 
 export function ProductCard({ product }: { product: Product }) {
   const { add } = useCart();
+  const { session, loading } = useAuth();
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-glow">
       {isOnSale(product) && (
@@ -73,15 +75,29 @@ export function ProductCard({ product }: { product: Product }) {
               View details
             </Link>
           </Button>
-          <Button
-            variant="hero"
-            className="flex-1"
-            onClick={() => add(product)}
-            disabled={product.price <= 0}
-            aria-label={`Add ${product.name} to cart`}
-          >
-            <ShoppingCart /> Add
-          </Button>
+          {loading ? (
+            <Button variant="hero" className="flex-1" disabled>
+              Checking…
+            </Button>
+          ) : session ? (
+            <Button
+              variant="hero"
+              className="flex-1"
+              onClick={() => add(product)}
+              disabled={product.price <= 0}
+              aria-label={`Add ${product.name} to cart`}
+            >
+              <ShoppingCart /> Add
+            </Button>
+          ) : product.price > 0 ? (
+            <Button asChild variant="hero" className="flex-1">
+              <Link to="/account">Sign in to add</Link>
+            </Button>
+          ) : (
+            <Button variant="hero" className="flex-1" disabled>
+              Price to be set
+            </Button>
+          )}
         </div>
       </div>
     </article>

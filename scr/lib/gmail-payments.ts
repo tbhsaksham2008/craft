@@ -250,7 +250,7 @@ export const scanGmailPaymentNotifications = createServerFn({
       autoApproved,
       ignoredNonMatchingSenders,
       message: checkpoint
-        ? `${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically reconciled. Recent matching notifications and new messages were scanned; unmatched or unverified messages remain for manual review.`
-        : `Gmail history baseline saved. ${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically reconciled from recent matching notifications; unmatched or unverified messages remain for manual review.`,
+        ? `${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically accepted. Recent matching notifications and new messages were scanned; unmatched or unverified notifications remain pending.`
+        : `Gmail history baseline saved. ${autoApproved} exact-order payment${autoApproved === 1 ? " was" : "s were"} automatically accepted from recent matching notifications; unmatched or unverified notifications remain pending.`,
     };
   });
