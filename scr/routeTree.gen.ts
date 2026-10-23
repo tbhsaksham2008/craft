@@ -26,6 +26,7 @@ import { Route as RefundsRouteImport } from './routes/refunds'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as VoteRouteImport } from './routes/vote'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as ApiAdminTestEnvRouteImport } from './routes/api/admin/test-env'
 import { Route as ApiGameClaimRouteImport } from './routes/api/game/claim'
@@ -117,6 +118,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VoteRoute = VoteRouteImport.update({
+  id: '/vote',
+  path: '/vote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/store': typeof StoreRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/vote': typeof VoteRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/store': typeof StoreRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/vote': typeof VoteRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/store': typeof StoreRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/vote': typeof VoteRoute
   '/product/$id': typeof ProductIdRoute
   '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/support'
     | '/terms'
+    | '/vote'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/support'
     | '/terms'
+    | '/vote'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/support'
     | '/terms'
+    | '/vote'
     | '/product/$id'
     | '/api/admin/test-env'
     | '/api/game/claim'
@@ -309,6 +321,7 @@ export interface RootRouteChildren {
   StoreRoute: typeof StoreRoute
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
+  VoteRoute: typeof VoteRoute
   ProductIdRoute: typeof ProductIdRoute
   ApiAdminTestEnvRoute: typeof ApiAdminTestEnvRoute
   ApiGameClaimRoute: typeof ApiGameClaimRoute
@@ -437,6 +450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vote': {
+      id: '/vote'
+      path: '/vote'
+      fullPath: '/vote'
+      preLoaderRoute: typeof VoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$id': {
       id: '/product/$id'
       path: '/product/$id'
@@ -493,6 +513,7 @@ const rootRouteChildren: RootRouteChildren = {
   StoreRoute: StoreRoute,
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
+  VoteRoute: VoteRoute,
   ProductIdRoute: ProductIdRoute,
   ApiAdminTestEnvRoute: ApiAdminTestEnvRoute,
   ApiGameClaimRoute: ApiGameClaimRoute,
