@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local Wrangler preview values.
+# Do not commit .dev.vars or put production credentials in this example.
+SUPABASE_SERVICE_ROLE_KEY=
+MERCHANT_UPI_ID=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GMAIL_REFRESH_TOKEN=
+GMAIL_ACCOUNT_EMAIL=
+FAMPAY_NOTIFICATION_DKIM_DOMAIN=
+MINECRAFT_PLUGIN_TOKEN=

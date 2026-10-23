@@ -26,9 +26,9 @@ These `VITE_` settings are included in the browser bundle by Vite. They are
 public configuration, not secrets. Add them to the Cloudflare build
 environment, then rebuild and deploy after changing them:
 
-| Name | Value |
-| --- | --- |
-| `VITE_SUPABASE_URL` | Supabase project URL |
+| Name                     | Value                         |
+| ------------------------ | ----------------------------- |
+| `VITE_SUPABASE_URL`      | Supabase project URL          |
 | `VITE_SUPABASE_ANON_KEY` | Supabase publishable/anon key |
 
 Never use a Supabase service-role key as the anon key.
@@ -37,24 +37,24 @@ Never use a Supabase service-role key as the anon key.
 
 Add these under the Worker’s **Settings → Variables and Secrets → Variables**:
 
-| Name | Required | Purpose |
-| --- | --- | --- |
-| `MERCHANT_UPI_ID` | Yes | UPI destination used to create payment requests |
-| `GOOGLE_OAUTH_CLIENT_ID` | For Gmail scanning | Google OAuth client ID |
-| `GMAIL_ACCOUNT_EMAIL` | For Gmail scanning | Mailbox authorized by the refresh token |
-| `FAMPAY_NOTIFICATION_DKIM_DOMAIN` | Optional | Domain used when parsing authentication metadata |
+| Name                              | Required           | Purpose                                          |
+| --------------------------------- | ------------------ | ------------------------------------------------ |
+| `MERCHANT_UPI_ID`                 | Yes                | UPI destination used to create payment requests  |
+| `GOOGLE_OAUTH_CLIENT_ID`          | For Gmail scanning | Google OAuth client ID                           |
+| `GMAIL_ACCOUNT_EMAIL`             | For Gmail scanning | Mailbox authorized by the refresh token          |
+| `FAMPAY_NOTIFICATION_DKIM_DOMAIN` | Optional           | Domain used when parsing authentication metadata |
 
 ## Worker secrets
 
 Add these under **Settings → Variables and Secrets → Secrets**. Keep each value
 server-side; never add a `VITE_` prefix:
 
-| Name | Required | Purpose |
-| --- | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Privileged server-side database access |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | For Gmail scanning | Google OAuth client secret |
-| `GMAIL_REFRESH_TOKEN` | For Gmail scanning | Authorized Gmail mailbox access |
-| `MINECRAFT_PLUGIN_TOKEN` | For game delivery | Shared secret used by the Paper plugin |
+| Name                         | Required           | Purpose                                |
+| ---------------------------- | ------------------ | -------------------------------------- |
+| `SUPABASE_SERVICE_ROLE_KEY`  | Yes                | Privileged server-side database access |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | For Gmail scanning | Google OAuth client secret             |
+| `GMAIL_REFRESH_TOKEN`        | For Gmail scanning | Authorized Gmail mailbox access        |
+| `MINECRAFT_PLUGIN_TOKEN`     | For game delivery  | Shared secret used by the Paper plugin |
 
 The Gmail and Minecraft integrations are optional if you are not using those
 features. Keep `MINECRAFT_PLUGIN_TOKEN` identical to the Paper plugin's token.
@@ -66,13 +66,15 @@ The repository includes Wrangler as a development dependency. From a local
 terminal, run:
 
 ```sh
-npm run deploy:cloudflare
+bun run deploy:cloudflare
 ```
 
-For a local Cloudflare runtime preview, run:
+For a local Cloudflare runtime preview, first copy `.dev.vars.example` to
+`.dev.vars` and enter local server values. Keep `.dev.vars` private; Git ignores
+it. Set the public Supabase build values in `.env`, then run:
 
 ```sh
-npm run preview:cloudflare
+bun run preview:cloudflare
 ```
 
 Confirm the homepage, checkout, sign-in, and admin routes load after deployment.
