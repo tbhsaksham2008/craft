@@ -23,6 +23,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CraftStorePlugin extends JavaPlugin implements Listener {
@@ -34,6 +35,7 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   private long joinDelayTicks;
   private long paymentScanCooldownNanos;
   private final AtomicBoolean scanRunning = new AtomicBoolean();
+  private final AtomicBoolean statusReportRunning = new AtomicBoolean();
   private final AtomicLong lastScanNanos = new AtomicLong();
 
   @Override
@@ -73,6 +75,11 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
         .connectTimeout(requestTimeout)
         .build();
     getServer().getPluginManager().registerEvents(this, this);
+    Bukkit.getScheduler().runTaskTimer(
+        this,
+        this::reportServerStatus,
+        1L,
+        20L * 60L);
     getLogger().info(
         "Store delivery is enabled; rewards are checked when players join and payment notifications are scanned on join (cooldown: "
             + paymentScanCooldownSeconds + " seconds).");
@@ -91,8 +98,42 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
           Bukkit.getScheduler().runTaskAsynchronously(
               this,
               this::scanPayments);
+          reportServerStatus();
         },
         joinDelayTicks);
+  }
+
+  @EventHandler
+  public void onPlayerQuit(PlayerQuitEvent event) {
+    Bukkit.getScheduler().runTaskLater(this, this::reportServerStatus, 1L);
+  }
+
+  private void reportServerStatus() {
+    int onlinePlayers = Bukkit.getOnlinePlayers().size();
+    int maxPlayers = Bukkit.getMaxPlayers();
+    if (!statusReportRunning.compareAndSet(false, true)) {
+      return;
+    }
+    Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+      JsonObject requestBody = new JsonObject();
+      requestBody.addProperty("online", true);
+      requestBody.addProperty("onlinePlayers", onlinePlayers);
+      requestBody.addProperty("maxPlayers", maxPlayers);
+      try {
+        HttpResponse<String> response = post("/api/game/status", requestBody);
+        if (response.statusCode() != 200) {
+          getLogger().warning(
+              "Could not report server status: HTTP " + response.statusCode());
+        }
+      } catch (IOException | InterruptedException exception) {
+        if (exception instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
+        getLogger().log(Level.WARNING, "Could not report server status.", exception);
+      } finally {
+        statusReportRunning.set(false);
+      }
+    });
   }
 
   private void claimForPlayer(String username) {

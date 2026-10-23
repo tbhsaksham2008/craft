@@ -69,6 +69,11 @@ strong random secret. Never commit or share that token, and do not put the
 service-role key in the plugin. Restart the web app and Paper after setting the
 secret.
 
+The plugin reports the server's online player count and capacity to the store
+on startup, every 60 seconds, and when players join or leave. The homepage
+considers status stale after three minutes without a heartbeat. Apply the
+server-status migration with `supabase db push` before enabling this feature.
+
 When a player joins, the plugin asks the store to scan Gmail. Scans are
 rate-limited by `payment-scan-cooldown-seconds` (300 seconds by default), so a
 busy server does not repeatedly scan Gmail for every joining player. No Gmail

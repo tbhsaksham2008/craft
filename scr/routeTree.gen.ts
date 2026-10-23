@@ -33,6 +33,7 @@ import { Route as ApiAdminTestEnvRouteImport } from './routes/api/admin/test-env
 import { Route as ApiGameClaimRouteImport } from './routes/api/game/claim'
 import { Route as ApiGameCompleteRouteImport } from './routes/api/game/complete'
 import { Route as ApiGameScanRouteImport } from './routes/api/game/scan'
+import { Route as ApiGameStatusRouteImport } from './routes/api/game/status'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -154,6 +155,11 @@ const ApiGameScanRoute = ApiGameScanRouteImport.update({
   path: '/api/game/scan',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGameStatusRoute = ApiGameStatusRouteImport.update({
+  id: '/api/game/status',
+  path: '/api/game/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
+  '/api/game/status': typeof ApiGameStatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
+  '/api/game/status': typeof ApiGameStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
+  '/api/game/status': typeof ApiGameStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -261,6 +270,7 @@ export interface FileRouteTypes {
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
+    | '/api/game/status'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
+    | '/api/game/status'
   id:
     | '__root__'
     | '/'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
+    | '/api/game/status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -339,6 +351,7 @@ export interface RootRouteChildren {
   ApiGameClaimRoute: typeof ApiGameClaimRoute
   ApiGameCompleteRoute: typeof ApiGameCompleteRoute
   ApiGameScanRoute: typeof ApiGameScanRoute
+  ApiGameStatusRoute: typeof ApiGameStatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGameScanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/game/status': {
+      id: '/api/game/status'
+      path: '/api/game/status'
+      fullPath: '/api/game/status'
+      preLoaderRoute: typeof ApiGameStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -548,6 +568,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGameClaimRoute: ApiGameClaimRoute,
   ApiGameCompleteRoute: ApiGameCompleteRoute,
   ApiGameScanRoute: ApiGameScanRoute,
+  ApiGameStatusRoute: ApiGameStatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
