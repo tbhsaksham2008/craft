@@ -1,4 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   useCallback,
   useEffect,
@@ -211,6 +216,9 @@ export function AdminPage({
 }: {
   initialSection: AdminSection;
 }) {
+  const isAdminSubpage = useRouterState({
+    select: (state) => state.location.pathname !== "/admin",
+  });
   const [activeSection] = useState<AdminSection>(initialSection);
   const [authorized, setAuthorized] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -985,6 +993,10 @@ export function AdminPage({
       ...order.items.map((item) => item.name),
     ].some((value) => value.toLowerCase().includes(term));
   });
+
+  if (isAdminSubpage && initialSection === "overview") {
+    return <Outlet />;
+  }
 
   return (
     <InfoPage
