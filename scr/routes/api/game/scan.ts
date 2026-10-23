@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getGameDeliveryClient } from "@/lib/game-delivery.server";
-import { scanGmailNotificationsWithAdmin } from "@/lib/gmail-payments";
+import { scanGmailNotificationsWithAdmin } from "@/lib/gmail-payments.server";
 
 export const Route = createFileRoute("/api/game/scan")({
   server: {

@@ -56,25 +56,35 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
-// Nitro's Cloudflare/Vite wrapper calls this entry as fetch(request) only, so the
-// Worker `env` argument is undefined. Nitro stores the bindings on the request
-// (request.runtime.cloudflare.env) and on globalThis.__env__ instead.
+type CloudflareRequest = Request & {
+  runtime?: { cloudflare?: { env?: unknown; context?: unknown } };
+};
+
 function resolveWorkerEnv(request: Request, env: unknown): unknown {
   if (env && typeof env === "object") return env;
-  const fromRequest = (
-    request as { runtime?: { cloudflare?: { env?: unknown } } }
-  ).runtime?.cloudflare?.env;
+  const fromRequest = (request as CloudflareRequest).runtime?.cloudflare?.env;
   if (fromRequest && typeof fromRequest === "object") return fromRequest;
-  return (globalThis as { __env__?: unknown }).__env__;
+  return undefined;
+}
+
+function resolveWorkerContext(request: Request, context: unknown): unknown {
+  if (context && typeof context === "object") return context;
+  return (request as CloudflareRequest).runtime?.cloudflare?.context;
 }
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const bindings = resolveWorkerEnv(request, env);
+    const context = resolveWorkerContext(request, ctx);
+    if (!bindings) {
+      console.error(
+        "Cloudflare Worker environment bindings were not available on the request.",
+      );
+    }
     return runWithWorkerBindings(bindings, async () => {
       try {
         const handler = await getServerEntry();
-        const response = await handler.fetch(request, bindings, ctx);
+        const response = await handler.fetch(request, bindings, context);
         return await normalizeCatastrophicSsrResponse(response);
       } catch (error) {
         console.error(error);

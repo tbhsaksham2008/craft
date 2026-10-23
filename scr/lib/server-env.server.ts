@@ -3,7 +3,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 type WorkerBindings = Record<string, unknown>;
 
-const workerBindingsStorage = new AsyncLocalStorage<WorkerBindings>();
+const workerBindingsStorage = new AsyncLocalStorage<{
+  bindings: WorkerBindings | undefined;
+}>();
 
 function isWorkerBindings(value: unknown): value is WorkerBindings {
   return typeof value === "object" && value !== null;
@@ -14,15 +16,15 @@ export function runWithWorkerBindings<T>(
   callback: () => T,
 ): T {
   return workerBindingsStorage.run(
-    isWorkerBindings(bindings) ? bindings : {},
+    { bindings: isWorkerBindings(bindings) ? bindings : undefined },
     callback,
   );
 }
 
 export function getServerEnv(name: string) {
-  const workerBindings = workerBindingsStorage.getStore();
-  if (workerBindings) {
-    const value = workerBindings[name];
+  const requestScope = workerBindingsStorage.getStore();
+  if (requestScope) {
+    const value = requestScope.bindings?.[name];
     return typeof value === "string" ? value : undefined;
   }
 
@@ -31,6 +33,11 @@ export function getServerEnv(name: string) {
 
 export function requiredServerEnv(name: string, fallback?: string) {
   const value = (getServerEnv(name) ?? fallback)?.trim();
-  if (!value) throw new Error(`Missing server configuration: ${name}`);
+  if (!value) {
+    if (workerBindingsStorage.getStore()) {
+      console.error(`Missing server configuration binding: ${name}`);
+    }
+    throw new Error(`Missing server configuration: ${name}`);
+  }
   return value;
 }
