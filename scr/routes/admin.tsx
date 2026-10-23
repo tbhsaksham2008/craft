@@ -43,6 +43,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import type { AdminSection } from "@/lib/admin-sections";
 import { scanGmailPaymentNotifications } from "@/lib/gmail-payments";
 import { seo } from "@/lib/seo";
 import { normalizeVotingUrl, type VotingSite } from "@/lib/voting-sites";
@@ -151,12 +152,6 @@ const adminSections = [
   { id: "fulfillment", label: "Fulfillment", Icon: ClipboardList },
   { id: "test", label: "Test", Icon: Settings },
 ] as const;
-
-type AdminSection = (typeof adminSections)[number]["id"];
-
-export function isAdminSection(value: string): value is AdminSection {
-  return adminSections.some((section) => section.id === value);
-}
 
 const envVarTests = [
   { name: "VITE_SUPABASE_URL", label: "Supabase URL" },
@@ -1852,9 +1847,9 @@ export function AdminPage({
                     <AlertDialogHeader>
                       <AlertDialogTitle>Remove this product?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {productToRemove?.name} will be permanently deleted
-                        from the shop. Past order records will be preserved
-                        without a link to this product.
+                        {productToRemove?.name} will be permanently deleted from
+                        the shop. Past order records will be preserved without
+                        a link to this product.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

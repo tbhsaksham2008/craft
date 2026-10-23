@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { AdminPage, isAdminSection } from "@/routes/admin";
+import { AdminPage } from "@/routes/admin";
+import { isAdminSection } from "@/lib/admin-sections";
 
 export const Route = createFileRoute("/admin/$section")({
   beforeLoad: ({ params }) => {
