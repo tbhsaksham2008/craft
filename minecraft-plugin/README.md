@@ -48,7 +48,20 @@ store:
   token: "the-same-random-secret-as-MINECRAFT_PLUGIN_TOKEN"
   request-timeout-seconds: 10
   join-delay-ticks: 20
+
+announcements:
+  purchase-message:
+    - "&8&m----------------------------------------"
+    - "&6&lSTORE &8> &e{player} &fbought"
+    - "&a&l{quantity}x {item}"
+    - "&8&m----------------------------------------"
 ```
+
+Each configured purchase-message line is broadcast to everyone after the
+player's store reward commands succeed. Use `{player}` for the buyer's username,
+`{item}` for the product name, and `{quantity}` for the purchased quantity.
+Minecraft `&` color codes are supported. Set the list to `[]` to disable
+purchase announcements.
 
 Set `MINECRAFT_PLUGIN_TOKEN` in the store's server-only environment to the same
 strong random secret. Never commit or share that token, and do not put the

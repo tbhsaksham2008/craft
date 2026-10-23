@@ -128,6 +128,24 @@ type GmailPaymentEventRow = {
 
 type OrderFilter = "all" | OrderHistoryRow["status"];
 
+const envVarTests = [
+  { name: "VITE_SUPABASE_URL", label: "Supabase URL" },
+  { name: "VITE_SUPABASE_ANON_KEY", label: "Supabase anon key" },
+  { name: "SUPABASE_SERVICE_ROLE_KEY", label: "Supabase service-role key" },
+  { name: "MERCHANT_UPI_ID", label: "Merchant UPI ID" },
+  { name: "GOOGLE_OAUTH_CLIENT_ID", label: "Google OAuth client ID" },
+  { name: "GOOGLE_OAUTH_CLIENT_SECRET", label: "Google OAuth client secret" },
+  { name: "GMAIL_REFRESH_TOKEN", label: "Gmail refresh token" },
+  { name: "GMAIL_ACCOUNT_EMAIL", label: "Gmail account email" },
+  { name: "MINECRAFT_PLUGIN_TOKEN", label: "Minecraft plugin token" },
+  {
+    name: "FAMPAY_NOTIFICATION_DKIM_DOMAIN",
+    label: "FamPay DKIM domain (optional)",
+  },
+] as const;
+
+type EnvVarName = (typeof envVarTests)[number]["name"];
+
 const emptyProduct = {
   id: "",
   name: "",
@@ -176,6 +194,11 @@ function AdminPage() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [scanningGmail, setScanningGmail] = useState(false);
+  const [testingEnvVariable, setTestingEnvVariable] =
+    useState<EnvVarName | null>(null);
+  const [envTestResults, setEnvTestResults] = useState<
+    Partial<Record<EnvVarName, { success: boolean; message: string }>>
+  >({});
   const [savingOrderStatus, setSavingOrderStatus] = useState<string | null>(
     null,
   );
@@ -636,6 +659,58 @@ function AdminPage() {
       setScanningGmail(false);
     }
   }, [refresh]);
+
+  const testEnvironmentVariable = async (name: EnvVarName) => {
+    if (!supabase) return;
+    setTestingEnvVariable(name);
+    setEnvTestResults((current) => ({
+      ...current,
+      [name]: undefined,
+    }));
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        throw new Error("Sign in with an admin account first.");
+      }
+      const response = await fetch("/api/admin/test-env", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          accessToken: sessionData.session.access_token,
+        }),
+      });
+      const result: {
+        success?: boolean;
+        message?: string;
+        error?: string;
+      } = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.error ?? `Test failed (HTTP ${response.status}).`,
+        );
+      }
+      setEnvTestResults((current) => ({
+        ...current,
+        [name]: { success: true, message: result.message ?? "Test passed." },
+      }));
+    } catch (testError) {
+      setEnvTestResults((current) => ({
+        ...current,
+        [name]: {
+          success: false,
+          message:
+            testError instanceof Error
+              ? testError.message
+              : "Environment variable test failed.",
+        },
+      }));
+    } finally {
+      setTestingEnvVariable(null);
+    }
+  };
 
   useEffect(() => {
     if (!authorized) return;
@@ -1645,6 +1720,63 @@ function AdminPage() {
                 No paid orders are waiting for fulfillment.
               </p>
             )}
+          </section>
+
+          <section className="admin-enter admin-stagger-3 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Configuration
+            </p>
+            <h2 className="mt-1 text-2xl">Environment variable tests</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Test each setting separately. Secret values are checked on the
+              server and never displayed. Google and Gmail settings are tested
+              together because OAuth requires all four values.
+            </p>
+            <ul className="mt-4 divide-y">
+              {envVarTests.map(({ name, label }) => {
+                const result = envTestResults[name];
+                const isTesting = testingEnvVariable === name;
+                return (
+                  <li
+                    key={name}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{label}</p>
+                      {result && (
+                        <p
+                          className={`mt-1 flex items-start gap-1.5 text-sm ${
+                            result.success
+                              ? "text-emerald-700 dark:text-emerald-400"
+                              : "text-destructive"
+                          }`}
+                          role="status"
+                        >
+                          {result.success ? (
+                            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                          ) : (
+                            <XCircle className="mt-0.5 size-4 shrink-0" />
+                          )}
+                          <span>{result.message}</span>
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={testingEnvVariable !== null}
+                      onClick={() => void testEnvironmentVariable(name)}
+                    >
+                      <RefreshCw
+                        className={`size-4 ${isTesting ? "animate-spin" : ""}`}
+                      />
+                      {isTesting ? "Testing…" : "Test"}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
         </div>
       )}

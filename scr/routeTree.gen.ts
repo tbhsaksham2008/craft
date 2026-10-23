@@ -27,6 +27,7 @@ import { Route as StoreRouteImport } from './routes/store'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as ApiAdminTestEnvRouteImport } from './routes/api/admin/test-env'
 import { Route as ApiGameClaimRouteImport } from './routes/api/game/claim'
 import { Route as ApiGameCompleteRouteImport } from './routes/api/game/complete'
 import { Route as ApiGameScanRouteImport } from './routes/api/game/scan'
@@ -121,6 +122,11 @@ const ProductIdRoute = ProductIdRouteImport.update({
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminTestEnvRoute = ApiAdminTestEnvRouteImport.update({
+  id: '/api/admin/test-env',
+  path: '/api/admin/test-env',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGameClaimRoute = ApiGameClaimRouteImport.update({
   id: '/api/game/claim',
   path: '/api/game/claim',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/product/$id': typeof ProductIdRoute
+  '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/product/$id': typeof ProductIdRoute
+  '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/product/$id': typeof ProductIdRoute
+  '/api/admin/test-env': typeof ApiAdminTestEnvRoute
   '/api/game/claim': typeof ApiGameClaimRoute
   '/api/game/complete': typeof ApiGameCompleteRoute
   '/api/game/scan': typeof ApiGameScanRoute
@@ -228,6 +237,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/product/$id'
+    | '/api/admin/test-env'
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/product/$id'
+    | '/api/admin/test-env'
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/product/$id'
+    | '/api/admin/test-env'
     | '/api/game/claim'
     | '/api/game/complete'
     | '/api/game/scan'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
   ProductIdRoute: typeof ProductIdRoute
+  ApiAdminTestEnvRoute: typeof ApiAdminTestEnvRoute
   ApiGameClaimRoute: typeof ApiGameClaimRoute
   ApiGameCompleteRoute: typeof ApiGameCompleteRoute
   ApiGameScanRoute: typeof ApiGameScanRoute
@@ -431,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/test-env': {
+      id: '/api/admin/test-env'
+      path: '/api/admin/test-env'
+      fullPath: '/api/admin/test-env'
+      preLoaderRoute: typeof ApiAdminTestEnvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/game/claim': {
       id: '/api/game/claim'
       path: '/api/game/claim'
@@ -474,6 +494,7 @@ const rootRouteChildren: RootRouteChildren = {
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
   ProductIdRoute: ProductIdRoute,
+  ApiAdminTestEnvRoute: ApiAdminTestEnvRoute,
   ApiGameClaimRoute: ApiGameClaimRoute,
   ApiGameCompleteRoute: ApiGameCompleteRoute,
   ApiGameScanRoute: ApiGameScanRoute,

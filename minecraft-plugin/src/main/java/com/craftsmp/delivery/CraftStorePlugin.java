@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -27,6 +28,7 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   private HttpClient httpClient;
   private String apiUrl;
   private String token;
+  private List<String> purchaseMessage;
   private Duration requestTimeout;
   private long joinDelayTicks;
   private final AtomicBoolean scanRunning = new AtomicBoolean();
@@ -36,6 +38,7 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     saveDefaultConfig();
     apiUrl = getConfig().getString("store.api-url", "").replaceAll("/+$", "");
     token = getConfig().getString("store.token", "").trim();
+    purchaseMessage = getConfig().getStringList("announcements.purchase-message");
     int timeoutSeconds = getConfig().getInt("store.request-timeout-seconds", 10);
     joinDelayTicks = Math.max(0, getConfig().getLong("store.join-delay-ticks", 20));
 
@@ -94,7 +97,7 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
       JsonArray deliveries = payload.getAsJsonArray("deliveries");
       for (int index = 0; index < deliveries.size(); index++) {
         JsonObject delivery = deliveries.get(index).getAsJsonObject();
-        dispatchDelivery(delivery);
+        dispatchDelivery(delivery, username);
       }
     } catch (IOException | InterruptedException | JsonSyntaxException | IllegalStateException exception) {
       if (exception instanceof InterruptedException) {
@@ -131,9 +134,10 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     }
   }
 
-  private void dispatchDelivery(JsonObject delivery) {
+  private void dispatchDelivery(JsonObject delivery, String username) {
     String queueId = requiredString(delivery, "queueId");
     String productName = requiredString(delivery, "productName");
+    int quantity = delivery.get("quantity").getAsInt();
     JsonArray commandArray = delivery.getAsJsonArray("commands");
     List<String> commands = new ArrayList<>();
     for (int index = 0; index < commandArray.size(); index++) {
@@ -158,8 +162,21 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
           break;
         }
       }
+      if (success) {
+        broadcastPurchase(username, productName, quantity);
+      }
       acknowledgeDelivery(queueId, success, failureReason);
     });
+  }
+
+  private void broadcastPurchase(String username, String productName, int quantity) {
+    for (String line : purchaseMessage) {
+      String message = line
+          .replace("{player}", username)
+          .replace("{item}", productName)
+          .replace("{quantity}", Integer.toString(quantity));
+      Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', message));
+    }
   }
 
   private void acknowledgeDelivery(String queueId, boolean success, String error) {
