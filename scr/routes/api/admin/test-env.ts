@@ -192,27 +192,9 @@ async function testGmailAccountEmail() {
   return "GMAIL_ACCOUNT_EMAIL matches the mailbox authorized by the refresh token.";
 }
 
-async function runEnvTest(name: EnvName, accessToken: string) {
+async function runEnvTest(name: EnvName) {
   const url = requiredValue("VITE_SUPABASE_URL");
   const anonKey = requiredValue("VITE_SUPABASE_ANON_KEY");
-  const authClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${accessToken}` } },
-  });
-  const { data: userData, error: authError } =
-    await authClient.auth.getUser(accessToken);
-  if (authError || !userData.user) {
-    throw new Error("Sign in with an admin account before testing settings.");
-  }
-  const { data: profile, error: profileError } = await authClient
-    .from("profiles")
-    .select("role")
-    .eq("id", userData.user.id)
-    .single();
-  if (profileError || profile?.role !== "admin") {
-    throw new Error("Admin access is required to test environment settings.");
-  }
-
   switch (name) {
     case "VITE_SUPABASE_URL": {
       const parsedUrl = new URL(url);
@@ -234,7 +216,7 @@ async function runEnvTest(name: EnvName, accessToken: string) {
       return "Supabase Auth is reachable.";
     }
     case "VITE_SUPABASE_ANON_KEY":
-      return "The anon key successfully authenticated this admin session.";
+      return "The anon key is configured.";
     case "SUPABASE_SERVICE_ROLE_KEY": {
       const serviceKey = requiredValue(name);
       const adminClient = createClient(url, serviceKey, {
@@ -330,18 +312,22 @@ export const Route = createFileRoute("/api/admin/test-env")({
               { status: 401 },
             );
           }
-          const { data: profile, error: profileError } = await authClient
-            .from("profiles")
-            .select("role")
-            .eq("id", userData.user.id)
-            .single();
-          if (profileError || profile?.role !== "admin") {
-            return Response.json(
-              { success: false, error: "Admin access is required." },
-              { status: 403 },
-            );
-          }
           if (action === "save") {
+            const { data: profile, error: profileError } = await authClient
+              .from("profiles")
+              .select("role")
+              .eq("id", userData.user.id)
+              .single();
+            if (profileError || profile?.role !== "admin") {
+              return Response.json(
+                {
+                  success: false,
+                  error:
+                    "Admin access is required to change environment settings.",
+                },
+                { status: 403 },
+              );
+            }
             const { accountId, apiToken, value } = body as {
               accountId?: unknown;
               apiToken?: unknown;
@@ -378,7 +364,7 @@ export const Route = createFileRoute("/api/admin/test-env")({
               { status: 400 },
             );
           }
-          const message = await runEnvTest(name as EnvName, accessToken);
+          const message = await runEnvTest(name as EnvName);
           return Response.json({ success: true, message });
         } catch (error) {
           const message =

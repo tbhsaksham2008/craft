@@ -176,6 +176,7 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPage() {
   const [authorized, setAuthorized] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
@@ -348,10 +349,12 @@ function AdminPage() {
       .then(async ({ data, error: authError }) => {
         if (!active) return;
         if (authError || !data.user) {
+          setSignedIn(false);
           setAuthorized(false);
           setChecking(false);
           return;
         }
+        setSignedIn(true);
         const { data: profile, error: profileError } = await client
           .from("profiles")
           .select("role")
@@ -686,7 +689,7 @@ function AdminPage() {
         await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       if (!sessionData.session) {
-        throw new Error("Sign in with an admin account first.");
+        throw new Error("Sign in before testing environment settings.");
       }
       const response = await fetch("/api/admin/test-env", {
         method: "POST",
@@ -887,13 +890,70 @@ function AdminPage() {
         <p className="rounded-2xl border bg-card p-6">Checking admin access…</p>
       ) : !authorized ? (
         <div className="rounded-2xl border bg-card p-6">
-          <p role="alert">
-            This account does not have admin access. Sign in with an admin
-            account to continue.
-          </p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link to="/account">Go to account</Link>
-          </Button>
+          {signedIn ? (
+            <>
+              <p>
+                Admin access is required to change environment settings. Signed
+                in users can still run configuration tests.
+              </p>
+              <h2 className="mt-6 text-xl font-semibold">
+                Environment variable tests
+              </h2>
+              <ul className="mt-3 divide-y">
+                {envVarTests.map(({ name, label }) => {
+                  const result = envTestResults[name];
+                  const isTesting = testingEnvVariable === name;
+                  return (
+                    <li
+                      key={name}
+                      className="flex flex-wrap items-center justify-between gap-3 py-3"
+                    >
+                      <div>
+                        <p className="font-medium">{label}</p>
+                        {result && (
+                          <p
+                            className={`mt-1 text-sm ${
+                              result.success
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-destructive"
+                            }`}
+                            role="status"
+                          >
+                            {result.message}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          testingEnvVariable !== null ||
+                          savingEnvVariable !== null
+                        }
+                        onClick={() => void testEnvironmentVariable(name)}
+                      >
+                        <RefreshCw
+                          className={`size-4 ${isTesting ? "animate-spin" : ""}`}
+                        />
+                        {isTesting ? "Testing…" : "Test"}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : (
+            <>
+              <p role="alert">
+                Sign in to test environment settings. Admin access is required
+                only to change them.
+              </p>
+              <Button asChild variant="outline" className="mt-4">
+                <Link to="/account">Go to account</Link>
+              </Button>
+            </>
+          )}
         </div>
       ) : (
         <div className="admin-dashboard space-y-8">
