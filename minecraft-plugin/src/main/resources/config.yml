@@ -3,6 +3,7 @@ store:
   token: "MINECRAFT_PLUGIN_TOKEN"
   request-timeout-seconds: 10
   join-delay-ticks: 20
+  payment-scan-cooldown-seconds: 300
 
 announcements:
   purchase-message:

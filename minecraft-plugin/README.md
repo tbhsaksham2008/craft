@@ -48,6 +48,7 @@ store:
   token: "the-same-random-secret-as-MINECRAFT_PLUGIN_TOKEN"
   request-timeout-seconds: 10
   join-delay-ticks: 20
+  payment-scan-cooldown-seconds: 300
 
 announcements:
   purchase-message:
@@ -68,8 +69,10 @@ strong random secret. Never commit or share that token, and do not put the
 service-role key in the plugin. Restart the web app and Paper after setting the
 secret.
 
-While Paper is online, the plugin asks the store to scan Gmail every 30 seconds,
-even when the admin dashboard is closed. Each email from `no-reply@famapp.in`
+When a player joins, the plugin asks the store to scan Gmail. Scans are
+rate-limited by `payment-scan-cooldown-seconds` (300 seconds by default), so a
+busy server does not repeatedly scan Gmail for every joining player. No Gmail
+scan is scheduled while the server is idle. Each email from `no-reply@famapp.in`
 is assigned to the newest pending order created before the email. Message
 content, sender authenticity, order ID, amount, and transaction reference are
 not independently verified. Confirm the transfer in the payment provider

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.ConsoleCommandSender;
@@ -31,7 +32,9 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   private List<String> purchaseMessage;
   private Duration requestTimeout;
   private long joinDelayTicks;
+  private long paymentScanCooldownNanos;
   private final AtomicBoolean scanRunning = new AtomicBoolean();
+  private final AtomicLong lastScanNanos = new AtomicLong();
 
   @Override
   public void onEnable() {
@@ -41,9 +44,14 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     purchaseMessage = getConfig().getStringList("announcements.purchase-message");
     int timeoutSeconds = getConfig().getInt("store.request-timeout-seconds", 10);
     joinDelayTicks = Math.max(0, getConfig().getLong("store.join-delay-ticks", 20));
+    int paymentScanCooldownSeconds = getConfig().getInt(
+        "store.payment-scan-cooldown-seconds",
+        300);
 
-    if (apiUrl.isBlank() || token.isBlank() || timeoutSeconds < 1) {
-      getLogger().severe("Set store.api-url, store.token, and a positive request timeout in config.yml.");
+    if (apiUrl.isBlank() || token.isBlank() || timeoutSeconds < 1
+        || paymentScanCooldownSeconds < 60) {
+      getLogger().severe(
+          "Set store.api-url, store.token, a positive request timeout, and a payment scan cooldown of at least 60 seconds in config.yml.");
       getServer().getPluginManager().disablePlugin(this);
       return;
     }
@@ -60,16 +68,14 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     }
 
     requestTimeout = Duration.ofSeconds(timeoutSeconds);
+    paymentScanCooldownNanos = Duration.ofSeconds(paymentScanCooldownSeconds).toNanos();
     httpClient = HttpClient.newBuilder()
         .connectTimeout(requestTimeout)
         .build();
     getServer().getPluginManager().registerEvents(this, this);
-    Bukkit.getScheduler().runTaskTimerAsynchronously(
-        this,
-        this::scanPayments,
-        joinDelayTicks,
-        20L * 30L);
-    getLogger().info("Store delivery is enabled; queued rewards are checked when players join.");
+    getLogger().info(
+        "Store delivery is enabled; rewards are checked when players join and payment notifications are scanned on join (cooldown: "
+            + paymentScanCooldownSeconds + " seconds).");
   }
 
   @EventHandler
@@ -77,9 +83,15 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     Player player = event.getPlayer();
     Bukkit.getScheduler().runTaskLater(
         this,
-        () -> Bukkit.getScheduler().runTaskAsynchronously(
-            this,
-            () -> claimForPlayer(player.getName())),
+        () -> {
+          String username = player.getName();
+          Bukkit.getScheduler().runTaskAsynchronously(
+              this,
+              () -> claimForPlayer(username));
+          Bukkit.getScheduler().runTaskAsynchronously(
+              this,
+              this::scanPayments);
+        },
         joinDelayTicks);
   }
 
@@ -108,9 +120,15 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   }
 
   private void scanPayments() {
+    long now = System.nanoTime();
+    long lastScan = lastScanNanos.get();
+    if (lastScan != 0 && now - lastScan < paymentScanCooldownNanos) {
+      return;
+    }
     if (!scanRunning.compareAndSet(false, true)) {
       return;
     }
+    lastScanNanos.set(now);
     try {
       HttpResponse<String> response = post("/api/game/scan", new JsonObject());
       if (response.statusCode() != 200) {
