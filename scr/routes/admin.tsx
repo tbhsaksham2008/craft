@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -47,6 +48,7 @@ type ProductRow = Omit<Product, "price" | "originalPrice" | "image"> & {
   original_price_paise: number | null;
   image_key: "rank" | "coins" | "crate";
   image_url: string | null;
+  delivery_commands: string[];
 };
 
 function productImageStoragePath(imageUrl: string | null) {
@@ -92,7 +94,8 @@ type OrderHistoryRow = {
   id: string;
   user_id: string;
   minecraft_username: string;
-  status: "pending" | "paid" | "rejected" | "cancelled" | "refunded";
+  status:
+    "pending" | "paid" | "completed" | "rejected" | "cancelled" | "refunded";
   currency: string;
   subtotal_paise: number;
   discount_paise: number;
@@ -133,6 +136,7 @@ const emptyProduct = {
   originalPrice: "",
   description: "",
   perks: "",
+  deliveryCommands: "",
   imageKey: "rank",
   featured: false,
   enabled: true,
@@ -175,6 +179,7 @@ function AdminPage() {
   const [savingOrderStatus, setSavingOrderStatus] = useState<string | null>(
     null,
   );
+  const scanningGmailRef = useRef(false);
 
   useEffect(() => {
     if (!imageFile) {
@@ -345,6 +350,33 @@ function AdminPage() {
     const originalPricePaise = form.originalPrice
       ? Math.round(Number(form.originalPrice) * 100)
       : null;
+    const deliveryCommands = form.deliveryCommands
+      .split("\n")
+      .map((command) => command.trim())
+      .filter(Boolean);
+    if (
+      form.enabled &&
+      pricePaise > 0 &&
+      (!deliveryCommands.length ||
+        deliveryCommands.length > 10 ||
+        deliveryCommands.some((command) => {
+          const withoutSupportedTokens = command.replace(
+            /\{(?:player|quantity|order_id|item_id)\}/g,
+            "",
+          );
+          return (
+            command.length > 256 ||
+            !command.includes("{player}") ||
+            !/^[A-Za-z0-9_:.{} -]+$/.test(command) ||
+            /[{}]/.test(withoutSupportedTokens)
+          );
+        }))
+    ) {
+      setError(
+        "Enabled paid products need at least one safe delivery command with a {player} placeholder.",
+      );
+      return;
+    }
     if (
       !Number.isInteger(pricePaise) ||
       pricePaise < 0 ||
@@ -372,6 +404,7 @@ function AdminPage() {
         .split("\n")
         .map((perk) => perk.trim())
         .filter(Boolean),
+      delivery_commands: deliveryCommands,
       image_key: form.imageKey,
       featured: form.featured,
       enabled: form.enabled,
@@ -454,6 +487,7 @@ function AdminPage() {
         : "",
       description: product.description,
       perks: product.perks.join("\n"),
+      deliveryCommands: product.delivery_commands.join("\n"),
       imageKey: product.image_key,
       featured: product.featured ?? false,
       enabled: product.enabled,
@@ -575,8 +609,9 @@ function AdminPage() {
     }
   };
 
-  const scanPaymentEmail = async () => {
-    if (!supabase) return;
+  const scanPaymentEmail = useCallback(async () => {
+    if (!supabase || scanningGmailRef.current) return;
+    scanningGmailRef.current = true;
     setScanningGmail(true);
     setError("");
     try {
@@ -597,9 +632,18 @@ function AdminPage() {
           : "Could not scan Gmail.",
       );
     } finally {
+      scanningGmailRef.current = false;
       setScanningGmail(false);
     }
-  };
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!authorized) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [authorized, refresh]);
 
   const updateOrderStatus = async (
     event: FormEvent<HTMLFormElement>,
@@ -608,6 +652,11 @@ function AdminPage() {
     event.preventDefault();
     if (!supabase) return;
     const status = String(new FormData(event.currentTarget).get("status"));
+    const currentOrder = orders.find((order) => order.id === orderId);
+    if (status === "completed" && currentOrder?.status === "completed") {
+      setNotice("This order was completed after server delivery.");
+      return;
+    }
     if (
       !["pending", "paid", "rejected", "refunded", "cancelled"].includes(status)
     ) {
@@ -653,7 +702,9 @@ function AdminPage() {
   const openQueueCount = queue.filter(
     (item) => item.status === "queued" || item.status === "processing",
   ).length;
-  const paidOrders = orders.filter((order) => order.status === "paid");
+  const paidOrders = orders.filter(
+    (order) => order.status === "paid" || order.status === "completed",
+  );
   const paidRevenuePaise = paidOrders.reduce(
     (sum, order) => sum + order.total_paise,
     0,
@@ -806,10 +857,13 @@ function AdminPage() {
             </p>
             <h2 className="mt-1 text-2xl">Automatic payment processing</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Matching authenticated Gmail notifications update orders
-              automatically. Orders without an exact order ID, amount, unique
-              transaction reference, and valid payment timestamp remain pending.
-              Admins can change an order status in order history.
+              Incoming messages from no-reply@famapp.in are assigned to the
+              newest pending order created before the message arrived. The
+              message contents, amount, and sender authenticity are not
+              independently verified. Confirm the transfer in your payment
+              provider before relying on the order status. The Paper server
+              scans every 30 seconds; orders become completed after delivery is
+              acknowledged.
             </p>
           </section>
 
@@ -817,13 +871,13 @@ function AdminPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Gmail evidence
+                  Payment notifications
                 </p>
                 <h2 className="mt-1 text-2xl">Payment notification inbox</h2>
                 <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                  Scan Gmail to process notifications. Exact authenticated order
-                  matches are accepted automatically; all notifications,
-                  including accepted and rejected ones, remain visible here.
+                  Review parsed notification details against the transaction in
+                  your payment provider. Email notifications do not
+                  independently confirm that funds were received.
                 </p>
               </div>
               <Button
@@ -967,6 +1021,7 @@ function AdminPage() {
                 >
                   <option value="all">All statuses</option>
                   <option value="paid">Paid</option>
+                  <option value="completed">Completed</option>
                   <option value="pending">Pending</option>
                   <option value="rejected">Rejected</option>
                   <option value="cancelled">Cancelled</option>
@@ -974,11 +1029,15 @@ function AdminPage() {
                 </select>
               </div>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {[
                 [
                   "Paid",
                   orders.filter((order) => order.status === "paid").length,
+                ],
+                [
+                  "Completed",
+                  orders.filter((order) => order.status === "completed").length,
                 ],
                 [
                   "Pending",
@@ -1009,13 +1068,13 @@ function AdminPage() {
             <div className="mt-5 space-y-3">
               {filteredOrders.map((order) => {
                 const StatusIcon =
-                  order.status === "paid"
+                  order.status === "paid" || order.status === "completed"
                     ? CheckCircle2
                     : order.status === "pending"
                       ? Clock3
                       : XCircle;
                 const statusClass =
-                  order.status === "paid"
+                  order.status === "paid" || order.status === "completed"
                     ? "bg-success/10 text-success"
                     : order.status === "pending"
                       ? "bg-amber-500/10 text-amber-700"
@@ -1119,6 +1178,9 @@ function AdminPage() {
                       >
                         <option value="pending">Pending</option>
                         <option value="paid">Paid</option>
+                        <option value="completed" disabled>
+                          Completed (server-confirmed)
+                        </option>
                         <option value="rejected">Rejected</option>
                         <option value="refunded">Refunded</option>
                         <option value="cancelled">Cancelled</option>
@@ -1246,6 +1308,29 @@ function AdminPage() {
                     setForm({ ...form, originalPrice: event.target.value })
                   }
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="product-delivery-commands">
+                  Delivery commands (one per line)
+                </Label>
+                <textarea
+                  id="product-delivery-commands"
+                  className="min-h-24 rounded-xl border bg-background p-3 font-mono text-sm"
+                  value={form.deliveryCommands}
+                  onChange={(event) =>
+                    setForm({ ...form, deliveryCommands: event.target.value })
+                  }
+                  placeholder="lp user {player} parent set bee"
+                  aria-describedby="product-delivery-help"
+                />
+                <p
+                  id="product-delivery-help"
+                  className="text-xs text-muted-foreground"
+                >
+                  Runs as console when the player joins. Each line needs a{" "}
+                  {"{player}"} placeholder and uses a restricted safe character
+                  set. Commands are snapshotted into each new order.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="product-image">Product image</Label>

@@ -38,10 +38,10 @@ export const Route = createFileRoute("/terms")({
       </p>
       <p>
         Prices are displayed in Indian rupees (INR). An order is subject to
-        checkout availability, payment verification, and the store's acceptance
-        of that order. A payment confirmation alone does not mean an in-game
-        reward has already been delivered. Verified orders may enter a
-        fulfillment queue, and processing can take time.
+        checkout availability, payment status processing, and the store's
+        acceptance of that order. A payment confirmation alone does not mean an
+        in-game reward has already been delivered. Orders marked paid may enter
+        a fulfillment queue, and processing can take time.
       </p>
 
       <h2>3. Minecraft username and fulfillment</h2>
@@ -79,12 +79,13 @@ export const Route = createFileRoute("/terms")({
 
       <h2>6. Payments and refunds</h2>
       <p>
-        Checkout may display a UPI payment request. A matching authenticated
-        Gmail notification can automatically mark an order paid when it contains
-        the exact order ID, amount, unique transaction reference, and a payment
-        timestamp inside the order window. Other notifications do not change
-        order status. Refunds are not offered for completed purchases except
-        where required by applicable law. Read the{" "}
+        Checkout may display a UPI payment request. Incoming payment
+        notification emails may automatically update an eligible order's status.
+        The store does not confirm settlement directly with your bank or UPI
+        provider, and an email notification alone is not proof that funds were
+        received. Check your UPI app's transaction history and keep your payment
+        receipt. Refunds are not offered for completed purchases except where
+        required by applicable law. Read the{" "}
         <Link to="/refunds" className="text-ink underline">
           Refund Policy
         </Link>{" "}

@@ -68,9 +68,11 @@ export const Route = createFileRoute("/support")({
 
       <h2>Order and delivery updates</h2>
       <p>
-        Payment verification and in-game fulfillment are separate steps.
-        Verified orders may remain queued while fulfillment is processed; check
-        your order history before contacting us. Read the{" "}
+        Payment notifications and in-game fulfillment are separate steps. Orders
+        marked paid may remain queued until the Minecraft server processes the
+        rewards. Payment status is not confirmed directly with your bank or UPI
+        provider, so check the transaction in your UPI app. Check your order
+        history before contacting us. Read the{" "}
         <Link to="/refunds" className="text-ink underline">
           Refund Policy
         </Link>{" "}

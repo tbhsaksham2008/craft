@@ -40,12 +40,12 @@ export const Route = createFileRoute("/privacy")({
       <h2>Payment information</h2>
       <p>
         Checkout displays a UPI payment request. The store does not collect UPI
-        credentials or PINs. If Gmail-assisted review is configured, an admin
-        may request limited Gmail read access to automatically match
-        payment-notification evidence to orders. Parsed email metadata and
-        transaction references are stored for matching and audit history.
-        Unmatched notifications do not change order status. Do not send full
-        card, bank, or UPI credentials to us.
+        credentials or PINs. An authorized store mailbox may be scanned for
+        payment notification emails. Parsed notification details, such as the
+        sender, received time, amount, and available payment references, may be
+        stored with order records for status updates and audit history. Payment
+        status is not confirmed directly with your bank or UPI provider. Do not
+        send full card, bank, or UPI credentials to us.
       </p>
 
       <h2>Information stored by your browser</h2>

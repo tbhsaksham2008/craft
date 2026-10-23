@@ -1,0 +1,5 @@
+store:
+  api-url: "https://your-store-domain.example"
+  token: "MINECRAFT_PLUGIN_TOKEN"
+  request-timeout-seconds: 10
+  join-delay-ticks: 20

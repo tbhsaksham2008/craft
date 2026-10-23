@@ -717,7 +717,10 @@ function AccountDashboard({
           <p className="mt-4 text-2xl font-bold">
             {formatPrice(
               orders
-                .filter((order) => order.status === "paid")
+                .filter(
+                  (order) =>
+                    order.status === "paid" || order.status === "completed",
+                )
                 .reduce((sum, order) => sum + order.total_paise, 0) / 100,
             )}
           </p>
@@ -848,10 +851,10 @@ function AccountDashboard({
                       {formatPrice(order.total_paise / 100)}
                     </p>
                     <span
-                      className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${order.status === "paid" ? "bg-success/10 text-success" : order.status === "pending" ? "bg-primary/30 text-foreground" : "bg-muted text-muted-foreground"}`}
+                      className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${order.status === "paid" || order.status === "completed" ? "bg-success/10 text-success" : order.status === "pending" ? "bg-primary/30 text-foreground" : "bg-muted text-muted-foreground"}`}
                     >
                       <span
-                        className={`size-1.5 rounded-full ${order.status === "paid" ? "bg-success" : "bg-current"}`}
+                        className={`size-1.5 rounded-full ${order.status === "paid" || order.status === "completed" ? "bg-success" : "bg-current"}`}
                       />
                       {order.status}
                     </span>

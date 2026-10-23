@@ -1,6 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AlertTriangle, FlaskConical } from "lucide-react";
+import {
+  CircleAlert,
+  CreditCard,
+  PackageCheck,
+  ShoppingBag,
+} from "lucide-react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +16,7 @@ import { QtyControl } from "@/components/site/CartDrawer";
 import { useCart } from "@/hooks/use-cart";
 import { formatPrice } from "@/config/site";
 import { isValidMinecraftName } from "@/lib/minecraft";
+import { scanGmailForCheckoutOrder } from "@/lib/gmail-payments";
 import { createUpiCheckoutOrder, getUpiOrderDetails } from "@/lib/payments";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { seo } from "@/lib/seo";
@@ -21,6 +27,8 @@ type PendingPayment = {
   vpa: string;
   upiUri: string | null;
   expiresAt: string;
+  status:
+    "pending" | "paid" | "completed" | "rejected" | "cancelled" | "refunded";
 };
 
 export const Route = createFileRoute("/checkout")({
@@ -52,6 +60,9 @@ function Checkout() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [currentTime, setCurrentTime] = useState(Date.now());
   const valid = isValidMinecraftName(name);
+  const activeOrderId = payment?.orderId;
+  const activePaymentStatus = payment?.status;
+  const activeAccessToken = session?.access_token;
 
   useEffect(() => {
     if (!supabase) return;
@@ -98,6 +109,77 @@ function Checkout() {
       active = false;
     };
   }, [payment, session]);
+
+  useEffect(() => {
+    if (
+      !activeAccessToken ||
+      !activeOrderId ||
+      activePaymentStatus !== "pending"
+    )
+      return;
+    let active = true;
+    let timer: number | undefined;
+    const scanForPayment = async () => {
+      try {
+        await scanGmailForCheckoutOrder({
+          data: {
+            accessToken: activeAccessToken,
+            orderId: activeOrderId,
+          },
+        });
+      } catch (pollError) {
+        if (active) {
+          console.error("Could not refresh checkout payment status", pollError);
+          setError(
+            "Payment status could not be refreshed. Check your order history or contact support.",
+          );
+        }
+      } finally {
+        if (active)
+          timer = window.setTimeout(() => void scanForPayment(), 30_000);
+      }
+    };
+
+    void scanForPayment();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [activeAccessToken, activeOrderId, activePaymentStatus]);
+
+  useEffect(() => {
+    if (
+      !activeAccessToken ||
+      !activeOrderId ||
+      activePaymentStatus !== "pending"
+    )
+      return;
+    let active = true;
+    const pollOrderStatus = async () => {
+      try {
+        const details = await getUpiOrderDetails({
+          data: {
+            accessToken: activeAccessToken,
+            orderId: activeOrderId,
+          },
+        });
+        if (active) setPayment(details);
+      } catch (pollError) {
+        if (active) {
+          setError(
+            pollError instanceof Error
+              ? `Could not refresh payment status: ${pollError.message}`
+              : "Could not refresh payment status.",
+          );
+        }
+      }
+    };
+    const timer = window.setInterval(() => void pollOrderStatus(), 10_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [activeAccessToken, activeOrderId, activePaymentStatus]);
 
   useEffect(() => {
     if (!payment?.upiUri) {
@@ -183,9 +265,6 @@ function Checkout() {
       window.sessionStorage.setItem("craft-upi-order-id", result.orderId);
       setPayment(result);
       clear();
-      setMessage(
-        "Order created. Complete the UPI payment; matching authenticated Gmail notifications are processed automatically after an admin scan.",
-      );
     } catch (checkoutError) {
       setError(
         checkoutError instanceof Error
@@ -198,95 +277,163 @@ function Checkout() {
   };
 
   if (payment) {
+    if (payment.status === "paid" || payment.status === "completed") {
+      return (
+        <>
+          <PageHeader
+            title={
+              payment.status === "completed"
+                ? "Order completed!"
+                : "Payment received!"
+            }
+            sub="Thank you for supporting Craft SMP."
+          />
+          <div className="mx-auto max-w-2xl px-4 py-12">
+            <section className="space-y-5 rounded-2xl border bg-card p-8 text-center shadow-soft sm:p-12">
+              <div className="mx-auto grid size-16 place-items-center rounded-full bg-success/10 text-success">
+                <span className="text-3xl" aria-hidden="true">
+                  ✓
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold">
+                {payment.status === "completed"
+                  ? "Your rewards have been delivered."
+                  : "Your payment is confirmed."}
+              </h2>
+              <p className="text-muted-foreground">
+                {payment.status === "completed"
+                  ? "Thanks for your purchase! Your order has been delivered in-game."
+                  : "Thanks for your payment! Your rewards are queued and will be delivered the next time you join the server."}
+              </p>
+              <p className="break-all font-mono text-xs text-muted-foreground">
+                Order {payment.orderId}
+              </p>
+              <Button asChild variant="hero">
+                <Link to="/account">View order history</Link>
+              </Button>
+            </section>
+          </div>
+        </>
+      );
+    }
+    if (
+      payment.status === "rejected" ||
+      payment.status === "cancelled" ||
+      payment.status === "refunded"
+    ) {
+      return (
+        <>
+          <PageHeader
+            title="Order status updated"
+            sub="Thank you for visiting Craft SMP."
+          />
+          <div className="mx-auto max-w-2xl px-4 py-12">
+            <section className="space-y-5 rounded-2xl border bg-card p-8 text-center shadow-soft sm:p-12">
+              <h2 className="text-2xl font-bold">
+                This order is {payment.status}.
+              </h2>
+              <p className="text-muted-foreground">
+                Contact store support if you believe this status is incorrect.
+              </p>
+              <Button asChild variant="outline">
+                <Link to="/account">View order history</Link>
+              </Button>
+            </section>
+          </div>
+        </>
+      );
+    }
     const paymentExpired = currentTime >= new Date(payment.expiresAt).getTime();
+    const maskedVpa =
+      payment.vpa.length > 7
+        ? `${"*".repeat(payment.vpa.length - 7)}${payment.vpa.slice(-7)}`
+        : payment.vpa;
     return (
       <>
         <PageHeader
-          title="Complete your UPI payment"
-          sub="Your order is saved. Matching payment notifications update its status automatically."
+          title="Complete your payment"
+          sub={`Order ${payment.orderId.slice(0, 8).toUpperCase()}`}
         />
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-          <section className="rounded-2xl border bg-card p-6 shadow-soft sm:p-8">
-            <div className="grid gap-8 sm:grid-cols-[260px_1fr]">
-              <div className="grid min-h-60 place-items-center rounded-2xl bg-white p-4">
-                {payment.upiUri && !paymentExpired && qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="QR code for the exact UPI order amount"
-                    width={240}
-                    height={240}
-                  />
-                ) : (
-                  <p className="text-center text-sm text-muted-foreground">
-                    {paymentExpired
-                      ? "This payment request has expired."
-                      : "Preparing your payment QR code…"}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-4">
+          <section className="overflow-hidden rounded-2xl border bg-card shadow-soft">
+            <div className="flex items-center justify-between gap-4 border-b px-6 py-4 sm:px-8">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-xl bg-muted text-foreground">
+                  <CreditCard className="size-5" />
+                </span>
                 <div>
-                  <p className="text-sm text-muted-foreground">Amount due</p>
-                  <p className="text-3xl font-bold">
-                    {formatPrice(payment.amountPaise / 100)}
-                  </p>
-                </div>
-                <div>
+                  <h2 className="font-semibold">UPI payment</h2>
                   <p className="text-sm text-muted-foreground">
-                    Merchant UPI ID
-                  </p>
-                  <p className="break-all font-mono font-semibold">
-                    {payment.vpa}
+                    {paymentExpired ? "Request expired" : "Awaiting payment"}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Order ID</p>
-                  <p className="break-all font-mono text-xs">
-                    {payment.orderId}
+              </div>
+              <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                {paymentExpired ? "Expired" : "Pending"}
+              </span>
+            </div>
+            <div className="p-6 sm:p-8">
+              <div className="grid gap-8 sm:grid-cols-[260px_1fr]">
+                <div className="grid min-h-60 place-items-center rounded-2xl border bg-white p-4">
+                  {payment.upiUri && !paymentExpired && qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="QR code for the exact UPI order amount"
+                      width={240}
+                      height={240}
+                    />
+                  ) : (
+                    <p className="text-center text-sm text-muted-foreground">
+                      {paymentExpired
+                        ? "This payment request has expired."
+                        : "Preparing your payment QR code…"}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Amount due
+                    </p>
+                    <p className="mt-1 text-4xl font-bold tracking-tight">
+                      {formatPrice(payment.amountPaise / 100)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Merchant UPI ID
+                    </p>
+                    <p className="break-all font-mono text-sm font-semibold">
+                      {maskedVpa}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Order ID</p>
+                    <p className="break-all font-mono text-xs">
+                      {payment.orderId}
+                    </p>
+                  </div>
+                  {payment.upiUri && !paymentExpired && (
+                    <Button asChild variant="hero" className="w-full">
+                      <a href={payment.upiUri}>Open a UPI app</a>
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Request expires{" "}
+                    {new Date(payment.expiresAt).toLocaleString()}.
                   </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Pay using any UPI app that supports a UPI payment intent or QR
-                  scan. FamApp compatibility depends on the installed app and
-                  device. Include the order ID in the payment note if your app
-                  allows it.
-                </p>
-                {payment.upiUri && !paymentExpired && (
-                  <Button asChild variant="hero" className="w-full">
-                    <a href={payment.upiUri}>Open a UPI app</a>
-                  </Button>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Request expires {new Date(payment.expiresAt).toLocaleString()}
-                  .
-                </p>
               </div>
             </div>
           </section>
 
-          <section className="space-y-4 rounded-2xl border bg-card p-6 shadow-soft">
-            <div className="flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
-              <AlertTriangle className="size-5 shrink-0 text-amber-700" />
-              <p>
-                Payment is accepted automatically only when a notification from
-                the authenticated merchant sender includes this exact order ID,
-                amount, and a unique transaction reference during the order
-                validity window. Gmail scans are started by an admin.
-                Notifications without an exact order match remain pending. Do
-                not pay an expired request or pay twice.
-              </p>
-            </div>
-            {error && (
+          {error && (
+            <section className="rounded-2xl border bg-card p-6 shadow-soft">
               <p role="alert" className="text-sm text-destructive">
                 {error}
               </p>
-            )}
-            {message && (
-              <p role="status" className="text-sm text-success">
-                {message}
-              </p>
-            )}
-          </section>
+            </section>
+          )}
         </div>
       </>
     );
@@ -321,20 +468,51 @@ function Checkout() {
     <>
       <PageHeader
         title="Checkout"
-        sub="Almost there — tell us who receives the rewards."
+        sub="Review your order and delivery details."
       />
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1fr_400px]">
+      <div className="mx-auto max-w-6xl px-4 pt-6">
+        <ol
+          aria-label="Checkout progress"
+          className="mx-auto flex max-w-xl items-center justify-center gap-3 text-sm"
+        >
+          <li className="flex items-center gap-2 font-semibold text-foreground">
+            <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground">
+              1
+            </span>
+            Details
+          </li>
+          <li aria-hidden="true" className="h-px w-12 bg-border sm:w-20" />
+          <li className="flex items-center gap-2 text-muted-foreground">
+            <span className="grid size-8 place-items-center rounded-full border bg-card">
+              2
+            </span>
+            Payment
+          </li>
+        </ol>
+      </div>
+      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 lg:grid-cols-[1fr_380px] lg:gap-8">
         <form
           onSubmit={(event) => void submit(event)}
-          className="space-y-6 rounded-2xl border bg-card p-6 shadow-soft"
+          className="space-y-7 rounded-2xl border bg-card p-6 shadow-soft sm:p-8"
           noValidate
         >
+          <div className="flex items-center gap-3 border-b pb-5">
+            <span className="grid size-11 place-items-center rounded-xl bg-muted">
+              <PackageCheck className="size-5" />
+            </span>
+            <div>
+              <h2 className="text-xl font-semibold">Delivery details</h2>
+              <p className="text-sm text-muted-foreground">
+                Choose the Minecraft account for your rewards.
+              </p>
+            </div>
+          </div>
           {!isSupabaseConfigured ? (
             <div className="flex gap-3 rounded-xl border border-blush bg-blush/25 p-4 text-sm">
-              <FlaskConical className="size-5 shrink-0" />
+              <CircleAlert className="size-5 shrink-0" />
               <p>
-                <strong>Payments aren’t configured.</strong> Add Supabase and
-                the merchant UPI ID from .env.example before taking orders.
+                <strong>Online payments are temporarily unavailable.</strong>{" "}
+                Please check back soon.
               </p>
             </div>
           ) : !session ? (
@@ -426,16 +604,6 @@ function Checkout() {
               Please confirm the receiving account.
             </p>
           )}
-          <div className="flex items-center gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-            {isSupabaseConfigured ? (
-              <AlertTriangle className="size-4" />
-            ) : (
-              <FlaskConical className="size-4" />
-            )}
-            {isSupabaseConfigured
-              ? "UPI checkout creates a payment request. Matching authenticated Gmail notifications are processed automatically when an admin scans the inbox."
-              : "No payment provider is configured."}
-          </div>
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -457,15 +625,25 @@ function Checkout() {
           </Button>
         </form>
 
-        <aside className="h-fit space-y-4 rounded-2xl border bg-card p-6 shadow-soft lg:sticky lg:top-24">
-          <h2 className="text-2xl">Order summary</h2>
-          <ul className="space-y-3">
+        <aside className="h-fit space-y-5 rounded-2xl border bg-card p-6 shadow-soft lg:sticky lg:top-24">
+          <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-muted">
+                <ShoppingBag className="size-5" />
+              </span>
+              <h2 className="text-xl font-semibold">Order summary</h2>
+            </div>
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
+              {lines.reduce((count, line) => count + line.qty, 0)} items
+            </span>
+          </div>
+          <ul className="space-y-4">
             {lines.map((line) => (
               <li
                 key={line.id}
-                className="flex items-center justify-between gap-3 text-sm"
+                className="flex items-start justify-between gap-3 text-sm"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium">{line.product.name}</p>
                   <QtyControl
                     id={line.id}
@@ -479,7 +657,7 @@ function Checkout() {
               </li>
             ))}
           </ul>
-          <dl className="space-y-2 border-t pt-4 text-sm">
+          <dl className="space-y-3 border-t pt-4 text-sm">
             <div className="flex justify-between">
               <dt>Subtotal</dt>
               <dd>{formatPrice(subtotal)}</dd>

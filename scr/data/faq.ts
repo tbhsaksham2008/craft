@@ -9,15 +9,15 @@ export const faqs = [
   },
   {
     q: "How does checkout work?",
-    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and create a UPI payment request. Matching authenticated Gmail notifications are processed automatically during an admin scan; unmatched notifications leave the order pending.",
+    a: "Sign in, add available products to your cart, enter your Minecraft username, review the total in INR, and continue with the UPI payment request. You can follow the order status from your account.",
   },
   {
     q: "How long does delivery take?",
-    a: "After an order is marked paid, it is placed in the reward-delivery queue. Game-server delivery is not currently automated, so queueing does not mean the item has already arrived in-game. Contact support with your order ID if you need an update.",
+    a: "After a payment notification is received, an eligible order is marked paid and its rewards are queued. The Paper delivery plugin runs the configured reward commands the next time that Minecraft username joins; the order is marked completed after delivery is acknowledged. Email notifications are not direct confirmation from your UPI provider, so keep your payment receipt and check the transaction in your UPI app.",
   },
   {
     q: "What if I am offline when a reward is processed?",
-    a: "The store records the Minecraft username on the order. Whether an offline player can receive a reward later depends on the server's fulfillment process; contact support if your order remains queued.",
+    a: "Rewards remain queued until the player joins Craft SMP. The configured Paper plugin then runs the product's reward commands and updates the order after delivery.",
   },
   {
     q: "Are ranks permanent?",
@@ -33,7 +33,7 @@ export const faqs = [
   },
   {
     q: "Which payment methods are available?",
-    a: "Checkout displays a UPI ID and QR/payment intent that compatible UPI applications can open. FamApp compatibility depends on your device and app version. Never share your UPI PIN, password, or OTP. Matching authenticated Gmail notifications are processed automatically during an admin scan; unmatched payments remain pending.",
+    a: "Checkout displays a UPI QR code and payment link for compatible UPI applications. App compatibility depends on your device and installed app. Order status updates are based on payment notification emails rather than direct confirmation from your UPI provider. Keep your payment receipt, and never share your UPI PIN, password, or one-time code.",
   },
   {
     q: "Can I get a refund?",
@@ -41,7 +41,7 @@ export const faqs = [
   },
   {
     q: "What if I paid but cannot find my order?",
-    a: "Check your account's order history. An authenticated Gmail notification must contain the exact order ID, amount, a unique transaction reference, and a payment time inside the order window to be accepted automatically. The admin can scan Gmail again; unmatched notifications remain pending. Never send full card, bank, or UPI credentials.",
+    a: "Check your account's order history and confirm the transaction in your UPI app. If the order status has not updated, contact support with your order ID, payment date, amount, and provider reference if available. Never send full card, bank, or UPI credentials.",
   },
   {
     q: "What if I entered the wrong Minecraft username?",

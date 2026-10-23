@@ -69,7 +69,7 @@ export const createUpiCheckoutOrder = createServerFn({ method: "POST" })
     const productIds = data.items.map((item) => item.productId);
     const { data: products, error: productError } = await admin
       .from("products")
-      .select("id,name,price_paise,enabled,single")
+      .select("id,name,price_paise,enabled,single,delivery_commands")
       .in("id", productIds);
     if (productError)
       throw new Error(`Could not validate your cart: ${productError.message}`);
@@ -84,6 +84,10 @@ export const createUpiCheckoutOrder = createServerFn({ method: "POST" })
     }
     if (products.some((product) => product.price_paise < 1))
       throw new Error("One or more products do not have a price set yet.");
+    if (products.some((product) => !product.delivery_commands?.length))
+      throw new Error(
+        "One or more products are missing Minecraft delivery commands. Contact the store admin.",
+      );
     if (
       products.some(
         (product) =>
@@ -154,6 +158,7 @@ export const createUpiCheckoutOrder = createServerFn({ method: "POST" })
           name: product.name,
           unit_price_paise: product.price_paise,
           quantity: item.quantity,
+          delivery_commands: product.delivery_commands,
         };
       }),
     );
@@ -192,15 +197,15 @@ export const getUpiOrderDetails = createServerFn({ method: "POST" })
       .eq("user_id", user.id)
       .single();
     if (error || !order) throw new Error("Order not found in your account.");
-    if (order.status !== "pending")
-      throw new Error("This order is no longer awaiting payment.");
-
-    const vpa = merchantVpa();
+    const status = order.status as
+      "pending" | "paid" | "completed" | "rejected" | "cancelled" | "refunded";
+    const vpa = status === "pending" ? merchantVpa() : "";
     return {
       orderId: order.id,
       amountPaise: order.total_paise,
       vpa,
       upiUri:
+        status === "pending" &&
         new Date(order.expires_at).getTime() > Date.now()
           ? buildUpiPaymentUri({
               vpa,
@@ -209,6 +214,6 @@ export const getUpiOrderDetails = createServerFn({ method: "POST" })
             })
           : null,
       expiresAt: order.expires_at,
-      status: "pending" as const,
+      status,
     };
   });

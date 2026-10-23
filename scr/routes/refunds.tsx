@@ -50,10 +50,10 @@ export const Route = createFileRoute("/refunds")({
         details, or UPI PINs.
       </p>
       <p>
-        Verified orders may be placed in a fulfillment queue; payment
-        confirmation does not mean an in-game item has already been delivered.
-        If a refund is required by applicable law, that legal requirement takes
-        precedence over this policy.
+        Orders marked paid may be placed in a fulfillment queue; payment status
+        does not mean an in-game item has already been delivered. If a refund is
+        required by applicable law, that legal requirement takes precedence over
+        this policy.
       </p>
 
       <h2>Payment disputes</h2>
