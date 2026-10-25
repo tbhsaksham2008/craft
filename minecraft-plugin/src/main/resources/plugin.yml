@@ -1,0 +1,7 @@
+name: CraftStoreDelivery
+version: "${version}"
+main: com.craftsmp.delivery.CraftStorePlugin
+api-version: "26.3"
+description: Delivers paid Craft SMP store orders when players join.
+libraries:
+  - com.google.code.gson:gson:2.13.1
