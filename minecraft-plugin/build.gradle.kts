@@ -25,4 +25,19 @@ tasks {
             expand("version" to project.version)
         }
     }
+
+    jar {
+        archiveBaseName.set("craft-store-status-delivery")
+    }
+
+    register<Jar>("deliveryOnlyJar") {
+        dependsOn(named("classes"))
+        archiveBaseName.set("craft-store-delivery")
+        from(sourceSets.main.get().output) {
+            exclude("plugin.yml", "config.yml")
+        }
+        from("src/delivery-only/resources") {
+            expand("version" to project.version)
+        }
+    }
 }

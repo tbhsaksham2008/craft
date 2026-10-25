@@ -13,7 +13,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.bukkit.Bukkit;
@@ -34,9 +36,11 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   private Duration requestTimeout;
   private long joinDelayTicks;
   private long paymentScanCooldownNanos;
+  private boolean statusReportingEnabled;
   private final AtomicBoolean scanRunning = new AtomicBoolean();
   private final AtomicBoolean statusReportRunning = new AtomicBoolean();
   private final AtomicLong lastScanNanos = new AtomicLong();
+  private final Set<String> activeClaims = ConcurrentHashMap.newKeySet();
 
   @Override
   public void onEnable() {
@@ -46,14 +50,18 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     purchaseMessage = getConfig().getStringList("announcements.purchase-message");
     int timeoutSeconds = getConfig().getInt("store.request-timeout-seconds", 10);
     joinDelayTicks = Math.max(0, getConfig().getLong("store.join-delay-ticks", 20));
+    int onlineDeliveryPollSeconds = getConfig().getInt(
+        "store.online-delivery-poll-seconds",
+        60);
+    statusReportingEnabled = getConfig().getBoolean("status.enabled", true);
     int paymentScanCooldownSeconds = getConfig().getInt(
         "store.payment-scan-cooldown-seconds",
         300);
 
     if (apiUrl.isBlank() || token.isBlank() || timeoutSeconds < 1
-        || paymentScanCooldownSeconds < 60) {
+        || paymentScanCooldownSeconds < 60 || onlineDeliveryPollSeconds < 10) {
       getLogger().severe(
-          "Set store.api-url, store.token, a positive request timeout, and a payment scan cooldown of at least 60 seconds in config.yml.");
+          "Set store.api-url, store.token, a positive request timeout, an online delivery poll interval of at least 10 seconds, and a payment scan cooldown of at least 60 seconds in config.yml.");
       getServer().getPluginManager().disablePlugin(this);
       return;
     }
@@ -75,14 +83,18 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
         .connectTimeout(requestTimeout)
         .build();
     getServer().getPluginManager().registerEvents(this, this);
-    Bukkit.getScheduler().runTaskTimer(
-        this,
-        this::reportServerStatus,
-        1L,
-        20L * 60L);
+    long onlineDeliveryPollTicks = 20L * onlineDeliveryPollSeconds;
+    Bukkit.getScheduler().runTaskTimer(this, this::pollOnlinePlayers,
+        onlineDeliveryPollTicks, onlineDeliveryPollTicks);
+    if (statusReportingEnabled) {
+      Bukkit.getScheduler().runTaskTimer(this, this::reportServerStatus, 1L,
+          20L * 60L);
+    }
     getLogger().info(
-        "Store delivery is enabled; rewards are checked when players join and payment notifications are scanned on join (cooldown: "
-            + paymentScanCooldownSeconds + " seconds).");
+        "Store delivery is enabled; online players are checked every "
+            + onlineDeliveryPollSeconds + " seconds and payment notifications are scanned at most every "
+            + paymentScanCooldownSeconds + " seconds. Server status reporting is "
+            + (statusReportingEnabled ? "enabled." : "disabled."));
   }
 
   @EventHandler
@@ -91,6 +103,9 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
     Bukkit.getScheduler().runTaskLater(
         this,
         () -> {
+          if (!player.isOnline()) {
+            return;
+          }
           String username = player.getName();
           Bukkit.getScheduler().runTaskAsynchronously(
               this,
@@ -98,17 +113,39 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
           Bukkit.getScheduler().runTaskAsynchronously(
               this,
               this::scanPayments);
-          reportServerStatus();
+          if (statusReportingEnabled) {
+            reportServerStatus();
+          }
         },
         joinDelayTicks);
   }
 
   @EventHandler
   public void onPlayerQuit(PlayerQuitEvent event) {
-    Bukkit.getScheduler().runTaskLater(this, this::reportServerStatus, 1L);
+    if (statusReportingEnabled) {
+      Bukkit.getScheduler().runTaskLater(this, this::reportServerStatus, 1L);
+    }
+  }
+
+  private void pollOnlinePlayers() {
+    List<String> onlineUsernames = Bukkit.getOnlinePlayers().stream()
+        .map(Player::getName)
+        .toList();
+    if (onlineUsernames.isEmpty()) {
+      return;
+    }
+    Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+      scanPayments();
+      for (String username : onlineUsernames) {
+        claimForPlayer(username);
+      }
+    });
   }
 
   private void reportServerStatus() {
+    if (!statusReportingEnabled) {
+      return;
+    }
     int onlinePlayers = Bukkit.getOnlinePlayers().size();
     int maxPlayers = Bukkit.getMaxPlayers();
     if (!statusReportRunning.compareAndSet(false, true)) {
@@ -137,6 +174,9 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
   }
 
   private void claimForPlayer(String username) {
+    if (!activeClaims.add(username.toLowerCase(java.util.Locale.ROOT))) {
+      return;
+    }
     try {
       JsonObject requestBody = new JsonObject();
       requestBody.addProperty("username", username);
@@ -157,6 +197,8 @@ public final class CraftStorePlugin extends JavaPlugin implements Listener {
         Thread.currentThread().interrupt();
       }
       getLogger().log(Level.WARNING, "Could not load queued rewards for " + username, exception);
+    } finally {
+      activeClaims.remove(username.toLowerCase(java.util.Locale.ROOT));
     }
   }
 

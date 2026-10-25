@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { requiredServerEnv } from "@/lib/server-env.server";
 
-const minecraftUsernamePattern = /^[A-Za-z0-9_]{3,16}$/;
+const minecraftUsernamePattern = /^\.?[A-Za-z0-9_]{3,16}$/;
 const commandPattern = /^[A-Za-z0-9_:.{} -]+$/;
 
 type QueueRow = {

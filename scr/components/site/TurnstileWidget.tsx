@@ -40,23 +40,22 @@ function loadTurnstile(): Promise<TurnstileApi> {
         async: true,
         defer: true,
       });
-    let loadTimeout: number | undefined;
-    const fail = () => {
-      if (loadTimeout !== undefined) window.clearTimeout(loadTimeout);
+    function fail() {
+      window.clearTimeout(loadTimeout);
       scriptPromise = undefined;
       reject(new Error("The security check could not be loaded."));
-    };
+    }
     const loaded = () => {
-      if (loadTimeout !== undefined) window.clearTimeout(loadTimeout);
+      window.clearTimeout(loadTimeout);
       if (window.turnstile) resolve(window.turnstile);
       else fail();
     };
     script.addEventListener("error", fail, { once: true });
     script.addEventListener("load", loaded, { once: true });
-    loadTimeout = window.setTimeout(fail, 10_000);
+    const loadTimeout = window.setTimeout(fail, 10_000);
     if (!existing) document.head.append(script);
     if (window.turnstile) {
-      if (loadTimeout !== undefined) window.clearTimeout(loadTimeout);
+      window.clearTimeout(loadTimeout);
       resolve(window.turnstile);
     }
   });
@@ -87,7 +86,9 @@ export function TurnstileWidget({
       },
       () => {
         if (active)
-          onError("The security check is not configured. Please try again later.");
+          onError(
+            "The security check is not configured. Please try again later.",
+          );
       },
     );
     return () => {

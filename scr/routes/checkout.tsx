@@ -251,9 +251,9 @@ function Checkout() {
         },
       });
       setDiscountPercent(result.percentOff);
-        setMessage(
-          `${result.percentOff}% discount applied. The server will verify the code again when your order is created.`,
-        );
+      setMessage(
+        `${result.percentOff}% discount applied. The server will verify the code again when your order is created.`,
+      );
     } catch (discountError) {
       setDiscountPercent(0);
       setError(
@@ -276,7 +276,9 @@ function Checkout() {
     setError("");
     if (!valid || !confirmed || !session?.access_token || !lines.length) return;
     if (!turnstileToken) {
-      setError("Complete the security check before creating your payment request.");
+      setError(
+        "Complete the security check before creating your payment request.",
+      );
       return;
     }
     submissionInFlight.current = true;
@@ -568,8 +570,8 @@ function Checkout() {
                 value={name}
                 onChange={(event) => setName(event.target.value.trim())}
                 onBlur={() => setTouched(true)}
-                placeholder="e.g. Steve"
-                maxLength={16}
+                placeholder="Java: Steve · Bedrock: .saksham"
+                maxLength={17}
                 className="h-11 rounded-xl"
                 aria-invalid={touched && !valid}
                 aria-describedby="mc-help"
@@ -583,12 +585,12 @@ function Checkout() {
                 }
               >
                 {touched && !valid
-                  ? "Use 3–16 letters, numbers or underscores."
-                  : "Exact Java Edition username, case-sensitive."}
+                  ? "Use a Java username (3–16 letters, numbers or underscores) or include the Geyser prefix for Bedrock, e.g. .saksham."
+                  : "Enter your exact in-game name. For Bedrock, include the configured Geyser prefix (e.g. .saksham)."}
               </p>
             </div>
           )}
-          {valid && (
+          {valid && !name.startsWith(".") && (
             <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
               <img
                 src={`https://mc-heads.net/avatar/${encodeURIComponent(name)}/48`}

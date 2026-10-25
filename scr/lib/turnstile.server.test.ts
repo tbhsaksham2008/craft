@@ -6,9 +6,7 @@ import {
 
 const originalSecret = process.env["TURNSTILE_SECRET_KEY"];
 
-function siteverifyResponse(
-  overrides: Record<string, unknown> = {},
-): Response {
+function siteverifyResponse(overrides: Record<string, unknown> = {}): Response {
   return Response.json({
     success: true,
     hostname: "store.craftsmp.cc",
@@ -54,9 +52,9 @@ describe("Turnstile server verification", () => {
     async (token) => {
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
-      await expect(
-        verifyTurnstileToken(token, "store"),
-      ).rejects.toBeInstanceOf(TurnstileVerificationError);
+      await expect(verifyTurnstileToken(token, "store")).rejects.toBeInstanceOf(
+        TurnstileVerificationError,
+      );
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
@@ -143,9 +141,10 @@ describe("Turnstile server verification", () => {
     );
 
     const verification = verifyTurnstileToken("slow-token", "store");
-    await vi.advanceTimersByTimeAsync(5_000);
-    await expect(verification).rejects.toBeInstanceOf(
+    const verificationResult = expect(verification).rejects.toBeInstanceOf(
       TurnstileVerificationError,
     );
+    await vi.advanceTimersByTimeAsync(5_000);
+    await verificationResult;
   });
 });

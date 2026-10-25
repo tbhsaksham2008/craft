@@ -3,7 +3,12 @@ import { requiredServerEnv } from "@/lib/server-env.server";
 
 const siteverifyUrl =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const tokenPattern = /^[^\u0000-\u0020\u007f]+$/;
+function containsControlCharacters(value: string) {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
+}
 
 type SiteverifyResponse = {
   success?: unknown;
@@ -27,7 +32,9 @@ export async function verifyTurnstileToken(
     typeof token !== "string" ||
     token.length === 0 ||
     token.length > 2048 ||
-    !tokenPattern.test(token)
+    token.trim() !== token ||
+    /\s/.test(token) ||
+    containsControlCharacters(token)
   ) {
     throw new TurnstileVerificationError();
   }

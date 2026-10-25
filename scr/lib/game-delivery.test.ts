@@ -6,9 +6,13 @@ import {
 } from "@/lib/game-delivery.server";
 
 describe("Minecraft delivery API validation", () => {
-  it("accepts Java usernames and rejects command-like usernames", () => {
+  it("accepts Java and dot-prefixed Geyser names and rejects command-like usernames", () => {
     expect(parseMinecraftUsername("Player_123")).toBe("Player_123");
+    expect(parseMinecraftUsername(".saksham")).toBe(".saksham");
     expect(() => parseMinecraftUsername("Player;op Admin")).toThrow(
+      "A valid Minecraft username is required.",
+    );
+    expect(() => parseMinecraftUsername("..saksham")).toThrow(
       "A valid Minecraft username is required.",
     );
   });
@@ -22,6 +26,14 @@ describe("Minecraft delivery API validation", () => {
         itemId: "item-id",
       }),
     ).toEqual(["lp user Player_123 parent set bee"]);
+    expect(
+      expandDeliveryCommands(["lp user {player} parent set bedrock"], {
+        player: ".saksham",
+        quantity: 1,
+        orderId: "order-id",
+        itemId: "item-id",
+      }),
+    ).toEqual(["lp user .saksham parent set bedrock"]);
   });
 
   it("rejects commands missing a player or containing unsupported syntax", () => {

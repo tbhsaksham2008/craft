@@ -189,7 +189,7 @@ function AccountPage() {
     }
     if (username && !isValidMinecraftName(username)) {
       setError(
-        "Minecraft usernames are 3–16 letters, numbers, or underscores.",
+        "Enter a Java username (3–16 letters, numbers or underscores) or a Geyser Bedrock name with its configured prefix, such as .saksham.",
       );
       return;
     }
@@ -308,7 +308,7 @@ function AccountPage() {
     if (!supabase || !session) return;
     if (username && !isValidMinecraftName(username)) {
       setError(
-        "Minecraft usernames are 3–16 letters, numbers, or underscores.",
+        "Enter a Java username (3–16 letters, numbers or underscores) or a Geyser Bedrock name with its configured prefix, such as .saksham.",
       );
       return;
     }
@@ -473,7 +473,7 @@ function AccountPage() {
                       <Input
                         id="signup-minecraft"
                         autoComplete="off"
-                        maxLength={16}
+                        maxLength={17}
                         value={username}
                         onChange={(event) =>
                           setUsername(event.target.value.trim())
@@ -833,7 +833,7 @@ function AccountDashboard({
             <div className="flex gap-2">
               <Input
                 id="profile-minecraft"
-                maxLength={16}
+                maxLength={17}
                 value={username}
                 onChange={(event) =>
                   onUsernameChange(event.target.value.trim())
@@ -850,7 +850,8 @@ function AccountDashboard({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Java Edition · 3–16 letters, numbers, or underscores
+              Java username or Geyser Bedrock name (include the configured
+              prefix, e.g. .saksham)
             </p>
           </div>
           <div className="mt-6 flex items-center gap-3 rounded-xl border bg-soft p-4">
