@@ -6,6 +6,7 @@ export const adminSectionIds = [
   "vote",
   "promotions",
   "fulfillment",
+  "settings",
   "test",
 ] as const;
 

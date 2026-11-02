@@ -16,6 +16,7 @@ import { CartProvider } from "@/hooks/use-cart";
 import { AuthProvider } from "@/hooks/use-auth";
 import { WishlistProvider } from "@/hooks/use-wishlist";
 import { Navbar } from "@/components/site/Navbar";
+import { AnnouncementBar } from "@/components/site/AnnouncementBar";
 import { Footer } from "@/components/site/Footer";
 import { CartDrawer } from "@/components/site/CartDrawer";
 import { Toaster } from "@/components/ui/sonner";
@@ -143,6 +144,7 @@ function RootComponent() {
           <CartProvider>
             <div className="flex min-h-screen flex-col">
               <Navbar />
+              <AnnouncementBar />
               <main className="app-main flex-1">
                 <Outlet />
               </main>

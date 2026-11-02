@@ -20,6 +20,7 @@ import {
   CircleDollarSign,
   CreditCard,
   LayoutDashboard,
+  Megaphone,
   Search,
   Package,
   Plus,
@@ -90,6 +91,13 @@ type VotingSiteForm = {
   enabled: boolean;
 };
 
+type AnnouncementRow = {
+  id: string;
+  message: string;
+  enabled: boolean;
+  updated_at: string;
+};
+
 type QueueRow = {
   id: string;
   status: "queued" | "processing" | "delivered" | "failed";
@@ -155,6 +163,7 @@ const adminSections = [
   { id: "vote", label: "Vote", Icon: Vote },
   { id: "promotions", label: "Promotions", Icon: Tags },
   { id: "fulfillment", label: "Fulfillment", Icon: ClipboardList },
+  { id: "settings", label: "Settings", Icon: Megaphone },
   { id: "test", label: "Test", Icon: Settings },
 ] as const;
 
@@ -226,6 +235,12 @@ export function AdminPage({
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [discounts, setDiscounts] = useState<DiscountRow[]>([]);
   const [votingSites, setVotingSites] = useState<VotingSite[]>([]);
+  const [announcement, setAnnouncement] = useState<AnnouncementRow>({
+    id: "global",
+    message: "",
+    enabled: true,
+    updated_at: "",
+  });
   const [votingSiteForm, setVotingSiteForm] =
     useState<VotingSiteForm>(emptyVotingSiteForm);
   const [editingVotingSiteId, setEditingVotingSiteId] = useState<string | null>(
@@ -293,6 +308,7 @@ export function AdminPage({
           queueResult,
           orderResult,
           gmailEventResult,
+          announcementResult,
         ] = await Promise.all([
           supabase.from("products").select("*").order("name"),
           supabase
@@ -323,6 +339,11 @@ export function AdminPage({
             )
             .order("received_at", { ascending: false })
             .limit(1000),
+          supabase
+            .from("site_announcements")
+            .select("id,message,enabled,updated_at")
+            .eq("id", "global")
+            .maybeSingle(),
         ]);
         const issue =
           productResult.error ??
@@ -330,7 +351,8 @@ export function AdminPage({
           votingSiteResult.error ??
           queueResult.error ??
           orderResult.error ??
-          gmailEventResult.error;
+          gmailEventResult.error ??
+          announcementResult.error;
         if (issue) throw issue;
         const orderRows = orderResult.data ?? [];
         const userIds = [...new Set(orderRows.map((order) => order.user_id))];
@@ -375,6 +397,9 @@ export function AdminPage({
         setGmailEvents(
           (gmailEventResult.data ?? []) as unknown as GmailPaymentEventRow[],
         );
+        if (announcementResult.data) {
+          setAnnouncement(announcementResult.data as AnnouncementRow);
+        }
         setOrders(
           orderRows.map((order) => ({
             ...order,
@@ -682,6 +707,44 @@ export function AdminPage({
         insertError instanceof Error
           ? `Could not create discount code: ${insertError.message}`
           : "Could not create discount code.",
+      );
+    }
+  };
+
+  const saveAnnouncement = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase) return;
+    setError("");
+    setNotice("");
+    const message = announcement.message.trim();
+    if (message.length > 240) {
+      setError("Announcements must be 240 characters or fewer.");
+      return;
+    }
+    try {
+      const { error: saveError } = await supabase
+        .from("site_announcements")
+        .upsert(
+          {
+            id: "global",
+            message,
+            enabled: announcement.enabled,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
+      if (saveError) throw saveError;
+      setAnnouncement((current) => ({
+        ...current,
+        message,
+        updated_at: new Date().toISOString(),
+      }));
+      setNotice("Announcement updated.");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? `Could not save announcement: ${saveError.message}`
+          : "Could not save announcement.",
       );
     }
   };
@@ -2153,6 +2216,60 @@ export function AdminPage({
                     No paid orders are waiting for fulfillment.
                   </p>
                 )}
+              </section>
+
+              <section
+                hidden={activeSection !== "settings"}
+                className="admin-enter admin-stagger-2 rounded-2xl border bg-card p-6 shadow-soft transition-shadow hover:shadow-glow"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Public site
+                </p>
+                <h2 className="mt-1 text-2xl">Rolling announcement</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This message appears in a slim bar directly below the main navigation. Keep it short so it reads well on phones.
+                </p>
+                <form
+                  onSubmit={(event) => void saveAnnouncement(event)}
+                  className="mt-5 space-y-4"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="site-announcement-message">Announcement text</Label>
+                    <textarea
+                      id="site-announcement-message"
+                      value={announcement.message}
+                      onChange={(event) =>
+                        setAnnouncement((current) => ({
+                          ...current,
+                          message: event.target.value,
+                        }))
+                      }
+                      maxLength={240}
+                      rows={3}
+                      placeholder="Welcome to Craft SMP — jump in and start your next adventure."
+                      className="w-full rounded-xl border bg-background p-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {announcement.message.length}/240 characters
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={announcement.enabled}
+                      onChange={(event) =>
+                        setAnnouncement((current) => ({
+                          ...current,
+                          enabled: event.target.checked,
+                        }))
+                      }
+                    />
+                    Show announcement on the public site
+                  </label>
+                  <Button type="submit" variant="hero">
+                    Save announcement
+                  </Button>
+                </form>
               </section>
 
               <section
