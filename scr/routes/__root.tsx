@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/hooks/use-cart";
 import { AuthProvider } from "@/hooks/use-auth";
+import { WishlistProvider } from "@/hooks/use-wishlist";
 import { Navbar } from "@/components/site/Navbar";
 import { Footer } from "@/components/site/Footer";
 import { CartDrawer } from "@/components/site/CartDrawer";
@@ -138,17 +139,19 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <CartProvider>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="app-main flex-1">
-              <Outlet />
-            </main>
-            <Footer />
-          </div>
-          <CartDrawer />
-          <Toaster position="top-center" richColors />
-        </CartProvider>
+        <WishlistProvider>
+          <CartProvider>
+            <div className="flex min-h-screen flex-col">
+              <Navbar />
+              <main className="app-main flex-1">
+                <Outlet />
+              </main>
+              <Footer />
+            </div>
+            <CartDrawer />
+            <Toaster position="top-center" richColors />
+          </CartProvider>
+        </WishlistProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

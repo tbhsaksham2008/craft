@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ShoppingCart } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/use-cart";
 import { discountPct, isOnSale, type Product } from "@/data/products";
 import { formatPrice } from "@/config/site";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useWishlist } from "@/hooks/use-wishlist";
 
 export const tintBg: Record<Product["tint"], string> = {
   sky: "bg-sky/60",
@@ -39,6 +40,8 @@ export function PriceDisplay({
 export function ProductCard({ product }: { product: Product }) {
   const { add } = useCart();
   const { session, loading } = useAuth();
+  const { productIds, loading: wishlistLoading, toggle } = useWishlist();
+  const saved = productIds.includes(product.id);
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-glow">
       {isOnSale(product) && (
@@ -46,6 +49,16 @@ export function ProductCard({ product }: { product: Product }) {
           -{discountPct(product)}%
         </span>
       )}
+      <button
+        type="button"
+        onClick={() => void toggle(product.id)}
+        disabled={wishlistLoading}
+        aria-label={saved ? `Remove ${product.name} from saved items` : `Save ${product.name} for later`}
+        aria-pressed={saved}
+        className="absolute left-3 top-3 z-10 grid size-9 place-items-center rounded-full border border-white/70 bg-white/85 text-ink shadow-soft backdrop-blur transition hover:scale-105 hover:bg-white disabled:cursor-wait disabled:opacity-70"
+      >
+        <Heart className={cn("size-4", saved && "fill-current")} />
+      </button>
       <Link
         to="/product/$id"
         params={{ id: product.id }}

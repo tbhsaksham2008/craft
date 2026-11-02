@@ -10,6 +10,7 @@ import {
   EyeOff,
   Gamepad2,
   Gem,
+  Heart,
   KeyRound,
   LockKeyhole,
   Mail,
@@ -23,11 +24,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TurnstileWidget } from "@/components/site/TurnstileWidget";
+import { ProductGrid } from "@/components/site/ProductCard";
 import heroImage from "@/assets/hero.jpg";
 import { formatPrice, site } from "@/config/site";
+import { activeProducts } from "@/data/products";
 import { isValidMinecraftName } from "@/lib/minecraft";
 import { isSupabaseConfigured, oauthProviders, supabase } from "@/lib/supabase";
 import { verifyAccountTurnstile } from "@/lib/turnstile";
+import { useWishlist } from "@/hooks/use-wishlist";
 import { seo } from "@/lib/seo";
 
 type Order = {
@@ -66,6 +70,7 @@ function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const { productIds: wishlistProductIds } = useWishlist();
   const handleTurnstileToken = useCallback((token: string) => {
     setTurnstileToken(token);
     if (token) setError("");
@@ -653,6 +658,9 @@ function AccountPage() {
           orders={orders}
           username={username}
           isAdmin={isAdmin}
+          wishlistProducts={activeProducts().filter((product) =>
+            wishlistProductIds.includes(product.id),
+          )}
           error={error}
           notice={notice}
           busy={busy}
@@ -705,6 +713,7 @@ function AccountDashboard({
   orders,
   username,
   isAdmin,
+  wishlistProducts,
   error,
   notice,
   busy,
@@ -716,6 +725,7 @@ function AccountDashboard({
   orders: Order[];
   username: string;
   isAdmin: boolean;
+  wishlistProducts: ReturnType<typeof activeProducts>;
   error: string;
   notice: string;
   busy: boolean;
@@ -811,6 +821,38 @@ function AccountDashboard({
           </p>
         </div>
       </div>
+
+      <section className="account-enter account-stagger-1 mt-7 rounded-2xl border bg-card p-6 shadow-soft sm:p-7">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink">
+              <Heart className="size-4" /> SAVED FOR LATER
+            </p>
+            <h2 className="mt-1 text-2xl">Your wishlist</h2>
+          </div>
+          <Link
+            to="/store"
+            className="inline-flex items-center gap-1 text-sm font-medium text-ink hover:underline"
+          >
+            Browse store <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+        {wishlistProducts.length > 0 ? (
+          <div className="mt-5">
+            <ProductGrid products={wishlistProducts} />
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed bg-soft/70 px-6 py-8 text-center">
+            <Heart className="mx-auto size-7 text-ink" />
+            <p className="mt-3 text-sm text-muted-foreground">
+              Save products from the store and they will appear here.
+            </p>
+            <Button asChild variant="hero" className="mt-4 rounded-xl">
+              <Link to="/store">Explore products</Link>
+            </Button>
+          </div>
+        )}
+      </section>
 
       <div className="mt-7 grid items-start gap-6 lg:grid-cols-[0.82fr_1.18fr]">
         <section className="account-enter account-stagger-2 rounded-2xl border bg-card p-6 shadow-soft">

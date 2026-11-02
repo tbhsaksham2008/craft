@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, ChevronLeft, ShoppingCart } from "lucide-react";
+import { Check, ChevronLeft, Heart, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   PriceDisplay,
@@ -21,6 +21,7 @@ import { seo } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/use-auth";
+import { useWishlist } from "@/hooks/use-wishlist";
 
 export const Route = createFileRoute("/product/$id")({
   loader: ({ params }) => ({ product: getProduct(params.id) ?? null }),
@@ -41,6 +42,8 @@ function ProductPage() {
   const [loadError, setLoadError] = useState("");
   const { add } = useCart();
   const { session, loading: authLoading } = useAuth();
+  const { productIds, loading: wishlistLoading, toggle } = useWishlist();
+  const saved = productIds.includes(product.id);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -157,6 +160,18 @@ function ProductPage() {
               </li>
             ))}
           </ul>
+          <Button
+            variant="outline"
+            size="lg"
+            className="mt-8 ml-2"
+            onClick={() => void toggle(product.id)}
+            disabled={wishlistLoading}
+            aria-label={saved ? "Remove from saved items" : "Save for later"}
+            aria-pressed={saved}
+          >
+            <Heart className={saved ? "fill-current" : undefined} />
+            {saved ? "Saved" : "Save for later"}
+          </Button>
           {authLoading ? (
             <Button
               variant="hero"
