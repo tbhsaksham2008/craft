@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Menu, ShoppingCart, User, X } from "lucide-react";
+import { Map as MapIcon, Menu, ShoppingCart, User, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/use-cart";
@@ -11,6 +11,7 @@ export const navLinks = [
   { to: "/ranks", label: "Ranks" },
   { to: "/crates", label: "Crates" },
   { to: "/coins", label: "Coins" },
+  { to: "/map", label: "Live Map" },
   { to: "/community", label: "Community" },
   { to: "/vote", label: "Vote" },
   { to: "/support", label: "Support" },
@@ -73,6 +74,11 @@ export function Navbar() {
               )}
             </Button>
           )}
+          <Button asChild variant="glass" className="hidden sm:inline-flex">
+            <Link to="/map">
+              <MapIcon /> Live map
+            </Link>
+          </Button>
           <Button asChild variant="hero" className="hidden sm:inline-flex">
             <Link to="/account">
               <User /> Account

@@ -20,6 +20,7 @@ const cols = [
     links: [
       ["/support", "Support"],
       ["/faq", "FAQ"],
+      ["/map", "Live Map"],
       ["/community", "Community"],
       ["/vote", "Vote"],
       ["/account", "Account"],

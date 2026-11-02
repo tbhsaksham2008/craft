@@ -19,6 +19,7 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CosmeticsRouteImport } from './routes/cosmetics'
 import { Route as CratesRouteImport } from './routes/crates'
 import { Route as FaqRouteImport } from './routes/faq'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RanksRouteImport } from './routes/ranks'
@@ -83,6 +84,11 @@ const CratesRoute = CratesRouteImport.update({
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OffersRoute = OffersRouteImport.update({
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/cosmetics': typeof CosmeticsRoute
   '/crates': typeof CratesRoute
   '/faq': typeof FaqRoute
+  '/map': typeof MapRoute
   '/offers': typeof OffersRoute
   '/privacy': typeof PrivacyRoute
   '/ranks': typeof RanksRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/cosmetics': typeof CosmeticsRoute
   '/crates': typeof CratesRoute
   '/faq': typeof FaqRoute
+  '/map': typeof MapRoute
   '/offers': typeof OffersRoute
   '/privacy': typeof PrivacyRoute
   '/ranks': typeof RanksRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/cosmetics': typeof CosmeticsRoute
   '/crates': typeof CratesRoute
   '/faq': typeof FaqRoute
+  '/map': typeof MapRoute
   '/offers': typeof OffersRoute
   '/privacy': typeof PrivacyRoute
   '/ranks': typeof RanksRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/cosmetics'
     | '/crates'
     | '/faq'
+    | '/map'
     | '/offers'
     | '/privacy'
     | '/ranks'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/cosmetics'
     | '/crates'
     | '/faq'
+    | '/map'
     | '/offers'
     | '/privacy'
     | '/ranks'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/cosmetics'
     | '/crates'
     | '/faq'
+    | '/map'
     | '/offers'
     | '/privacy'
     | '/ranks'
@@ -338,6 +350,7 @@ export interface RootRouteChildren {
   CosmeticsRoute: typeof CosmeticsRoute
   CratesRoute: typeof CratesRoute
   FaqRoute: typeof FaqRoute
+  MapRoute: typeof MapRoute
   OffersRoute: typeof OffersRoute
   PrivacyRoute: typeof PrivacyRoute
   RanksRoute: typeof RanksRoute
@@ -424,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/faq'
       fullPath: '/faq'
       preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/offers': {
@@ -555,6 +575,7 @@ const rootRouteChildren: RootRouteChildren = {
   CosmeticsRoute: CosmeticsRoute,
   CratesRoute: CratesRoute,
   FaqRoute: FaqRoute,
+  MapRoute: MapRoute,
   OffersRoute: OffersRoute,
   PrivacyRoute: PrivacyRoute,
   RanksRoute: RanksRoute,

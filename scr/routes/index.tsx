@@ -2,11 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
+  Compass,
   Gift,
   Heart,
+  Map as MapIcon,
   MessageCircle,
   ShieldCheck,
   Sparkles,
+  Trophy,
   Zap,
 } from "lucide-react";
 import hero from "@/assets/hero.jpg";
@@ -160,6 +163,33 @@ function Index() {
           </div>
         </div>
         <div className="h-16" />
+      </section>
+
+      {/* Stats bar */}
+      <section className="border-y bg-card">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-8 md:grid-cols-4">
+          {[
+            [Trophy, "Active community", "Daily players"],
+            [ShieldCheck, "Fair play", "Balanced survival"],
+            [Zap, "Lag-free", "Tuned performance"],
+            [Gift, "Weekly events", "Drops & giveaways"],
+          ].map(([Icon, t, d], i) => {
+            const I = Icon as typeof ShieldCheck;
+            return (
+              <Reveal key={t as string} delay={i * 60}>
+                <div className="flex items-center gap-3">
+                  <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand">
+                    <I className="size-5" />
+                  </div>
+                  <div>
+                    <p className="font-display text-lg">{t as string}</p>
+                    <p className="text-xs text-muted-foreground">{d as string}</p>
+                  </div>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
       </section>
 
       {/* Categories */}
@@ -324,6 +354,72 @@ function Index() {
               <Button variant="glass" size="lg" onClick={copyAddress}>
                 Copy server IP
               </Button>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* Live map teaser */}
+      <section className="mx-auto max-w-7xl px-4 py-16">
+        <Reveal>
+          <div className="relative overflow-hidden rounded-[2rem] border bg-card p-10 shadow-glow md:p-14">
+            <div
+              className="absolute -right-20 -top-20 size-64 rounded-full bg-brand opacity-30 blur-3xl"
+              aria-hidden
+            />
+            <div className="relative grid items-center gap-8 lg:grid-cols-2">
+              <div>
+                <span className="glass inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium">
+                  <MapIcon className="size-4 text-ink" /> Real-time world map
+                </span>
+                <h2 className="mt-4 text-3xl md:text-4xl">
+                  Explore the world <span className="text-gradient">live</span>
+                </h2>
+                <p className="mt-3 max-w-lg text-muted-foreground">
+                  See where players are building right now. Pan across our
+                  world, discover landmarks, and find your next adventure spot —
+                  all from your browser.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button asChild variant="hero" size="lg">
+                    <Link to="/map">
+                      Open live map <ArrowRight />
+                    </Link>
+                  </Button>
+                  <Button variant="glass" size="lg" onClick={copyAddress}>
+                    Join the server
+                  </Button>
+                </div>
+              </div>
+              <div className="relative">
+                <div
+                  className="absolute -inset-4 rounded-[2rem] bg-lilac opacity-40 blur-3xl animate-gradient"
+                  aria-hidden
+                />
+                <Link
+                  to="/map"
+                  className="group relative block overflow-hidden rounded-[2rem] border-4 border-card shadow-glow"
+                >
+                  <div className="flex h-64 items-center justify-center bg-soft pixel-grid">
+                    <div className="text-center">
+                      <Compass className="mx-auto size-16 animate-float text-ink" />
+                      <p className="mt-3 font-display text-xl">
+                        View the live map
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Dynmap · BlueMap · Real-time
+                      </p>
+                    </div>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/0 transition group-hover:bg-background/20">
+                    <span className="translate-y-4 opacity-0 transition-all group-hover:translate-y-0 group-hover:opacity-100">
+                      <span className="glass inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium">
+                        <MapIcon className="size-4" /> Click to explore
+                      </span>
+                    </span>
+                  </div>
+                </Link>
+              </div>
             </div>
           </div>
         </Reveal>
