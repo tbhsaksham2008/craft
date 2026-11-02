@@ -4,7 +4,7 @@ export const site = {
   serverAddress: "craftsmp.cc",
   discordUrl: "", // e.g. "https://discord.gg/your-invite"
   supportEmail: "", // e.g. "support@yourdomain.com"
-  mapUrl: "", // Live map URL (Dynmap/BlueMap). Leave empty to show a placeholder.
+  mapUrl: "http://103.118.182.66:30096/", // Live map URL (Dynmap/BlueMap).
   currency: "INR",
 };
 
