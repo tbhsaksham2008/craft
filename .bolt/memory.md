@@ -18,6 +18,7 @@
 ## Visual design & UX direction
 
 - Homepage includes an enhanced hero, highlights/stats strip, and live-map teaser.
+- Homepage server-status display shows the server address, a permanent “Active” badge, and a copy-address action; player-count information is omitted.
 - Live Map is available from the main navigation and footer, with a prominent quick-access action.
 - Dedicated Live Map page uses tabs for the live embed, map legend, and navigation/exploration tips.
 - Embedded map should be interactive, full-height where practical, provide loading feedback, and offer an “Open full screen” action.
@@ -39,15 +40,17 @@
 - Map page gracefully supports an unset URL with a placeholder state.
 - Map guidance is split into legend and tips tabs to keep the embedded experience focused.
 - Homepage changes are additive and retain existing site sections.
+- Homepage no longer communicates a live player count; its server-status presentation is intentionally always “Active.”
 - Footer and navbar both expose the Live Map destination.
 - The configured map uses HTTP; an HTTPS deployment may block it as mixed content, so an HTTPS map endpoint may be required in production.
 - Wishlist is a private, signed-in-player feature connected to product cards, product details, and the player account.
 - Wishlist persistence uses a dedicated table keyed to the existing catalog/account model; access is restricted to the owning signed-in player.
 - Wishlist state is provided through one shared connection rather than separate requests from every product card.
-- Build verification completed successfully after connecting the map address and after the wishlist work, including correction of the provider file format and tightening anonymous table permissions.
+- Build verification completed successfully after the homepage status update, map integration, and wishlist work, including correction of the provider file format and tightening anonymous table permissions.
 
 ## Open questions & assumptions
 
+- “Always Active” is a homepage display choice, not confirmation of real-time server availability; confirm whether actual health monitoring is needed later.
 - Confirm whether the HTTP map endpoint is reachable from the deployed site and whether production will require an HTTPS equivalent.
 - Confirm whether the map provider requires iframe permissions, fullscreen support, or special embedding headers.
 - Confirm intended meanings and visual colors for player, landmark, spawn, and safe-zone markers.
